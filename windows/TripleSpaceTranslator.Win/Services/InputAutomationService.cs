@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using System.Windows.Automation;
 using System.Windows.Forms;
 
 namespace TripleSpaceTranslator.Win.Services;
@@ -11,57 +10,11 @@ public sealed class InputAutomationService
 
     public string? ReadFocusedText()
     {
-        var element = AutomationElement.FocusedElement;
-        if (element is null)
-        {
-            return null;
-        }
-
-        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObj))
-        {
-            var valuePattern = (ValuePattern)valuePatternObj;
-            if (!string.IsNullOrEmpty(valuePattern.Current.Value))
-            {
-                return valuePattern.Current.Value;
-            }
-        }
-
-        if (element.TryGetCurrentPattern(TextPattern.Pattern, out var textPatternObj))
-        {
-            var textPattern = (TextPattern)textPatternObj;
-            var text = textPattern.DocumentRange.GetText(-1);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                return text;
-            }
-        }
-
         return CopyAllTextFallback();
     }
 
     public bool ReplaceFocusedText(string translated)
     {
-        var element = AutomationElement.FocusedElement;
-        if (element is null)
-        {
-            return false;
-        }
-
-        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObj))
-        {
-            var valuePattern = (ValuePattern)valuePatternObj;
-            if (!valuePattern.Current.IsReadOnly)
-            {
-                valuePattern.SetValue(translated);
-                return true;
-            }
-        }
-
-        if (TrySetSelectedTextPattern(element, translated))
-        {
-            return true;
-        }
-
         if (PasteReplaceFallback(translated))
         {
             return true;
@@ -84,27 +37,6 @@ public sealed class InputAutomationService
         }
 
         return result;
-    }
-
-    private static bool TrySetSelectedTextPattern(AutomationElement element, string translated)
-    {
-        try
-        {
-            SendCtrlChord(Keys.A);
-            Thread.Sleep(80);
-
-            if (element.TryGetCurrentPattern(TextPattern.Pattern, out _))
-            {
-                SendUnicodeText(translated);
-                return true;
-            }
-        }
-        catch
-        {
-            // ignore and continue fallback chain
-        }
-
-        return false;
     }
 
     private static string? CopyAllTextFallback()

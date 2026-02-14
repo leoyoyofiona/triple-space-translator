@@ -9,8 +9,4 @@
     <AssemblyName>TripleSpaceTranslator.Win</AssemblyName>
     <RootNamespace>TripleSpaceTranslator.Win</RootNamespace>
   </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="UIAutomationClient" />
-    <Reference Include="UIAutomationTypes" />
-  </ItemGroup>
 </Project>
