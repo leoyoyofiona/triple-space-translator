@@ -64,5 +64,22 @@ if (-not (Test-Path $issPath)) {
 Write-Host "Building installer with Inno Setup..." -ForegroundColor Cyan
 & $IsccPath "/DAppVersion=$AppVersion" $issPath
 
+if (-not (Test-Path $setupOut)) {
+    throw "Installer output directory missing: $setupOut"
+}
+
+$expectedInstaller = Join-Path $setupOut "TripleSpaceTranslator-Setup-$AppVersion.exe"
+if (-not (Test-Path $expectedInstaller)) {
+    $candidates = Get-ChildItem $setupOut -Filter "TripleSpaceTranslator-Setup-*.exe" -File |
+        Sort-Object LastWriteTime -Descending
+
+    if ($candidates.Count -gt 0) {
+        Copy-Item $candidates[0].FullName $expectedInstaller -Force
+        Write-Host "Normalized installer file name to: $expectedInstaller" -ForegroundColor Yellow
+    } else {
+        throw "Inno Setup did not generate installer exe in $setupOut"
+    }
+}
+
 Write-Host "Done. Installer output:" -ForegroundColor Green
 Get-ChildItem $setupOut | Select-Object FullName, Length, LastWriteTime

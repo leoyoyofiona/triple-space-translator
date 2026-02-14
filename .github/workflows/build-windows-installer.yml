@@ -41,9 +41,21 @@ jobs:
         shell: powershell
         run: |
           $version = "${{ github.event.inputs.app_version }}"
-          $installer = "windows/dist/installer/TripleSpaceTranslator-Setup-$version.exe"
-          if (-not (Test-Path $installer)) {
-            throw "Installer not found: $installer"
+          $expected = "windows/dist/installer/TripleSpaceTranslator-Setup-$version.exe"
+          if (Test-Path $expected) {
+            $installer = $expected
+          } else {
+            $candidate = Get-ChildItem -Path windows -Recurse -File -Filter "TripleSpaceTranslator-Setup-*.exe" |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+
+            if (-not $candidate) {
+              Write-Host "Installer not found. Debug listing:" -ForegroundColor Red
+              Get-ChildItem -Path windows -Recurse | Select-Object FullName
+              throw "Installer not found under windows/**"
+            }
+
+            $installer = $candidate.FullName
           }
           "installer_path=$installer" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
