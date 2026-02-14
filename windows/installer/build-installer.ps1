@@ -11,10 +11,12 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $windowsRoot = Resolve-Path (Join-Path $scriptDir "..")
 $projectPath = Join-Path $windowsRoot "TripleSpaceTranslator.Win\TripleSpaceTranslator.Win.csproj"
 $distRoot = Join-Path $windowsRoot "dist"
+$outX86 = Join-Path $distRoot "win-x86"
 $outX64 = Join-Path $distRoot "win-x64"
 $outArm64 = Join-Path $distRoot "win-arm64"
 $setupOut = Join-Path $distRoot "installer"
 
+New-Item -ItemType Directory -Force -Path $outX86 | Out-Null
 New-Item -ItemType Directory -Force -Path $outX64 | Out-Null
 New-Item -ItemType Directory -Force -Path $outArm64 | Out-Null
 New-Item -ItemType Directory -Force -Path $setupOut | Out-Null
@@ -29,6 +31,8 @@ if (-not $dotnetCmd) {
 }
 
 if (-not $SkipPublish) {
+    Write-Host "Publishing win-x86..." -ForegroundColor Cyan
+    dotnet publish $projectPath -c $Configuration -r win-x86 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=false -o $outX86
     Write-Host "Publishing win-x64..." -ForegroundColor Cyan
     dotnet publish $projectPath -c $Configuration -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=false -o $outX64
     Write-Host "Publishing win-arm64..." -ForegroundColor Cyan
@@ -36,12 +40,19 @@ if (-not $SkipPublish) {
 }
 
 $exeName = "TripleSpaceTranslator.Win.exe"
+if (-not (Test-Path (Join-Path $outX86 $exeName))) {
+    throw "Missing x86 publish output: $outX86\$exeName"
+}
 if (-not (Test-Path (Join-Path $outX64 $exeName))) {
     throw "Missing x64 publish output: $outX64\$exeName"
 }
 if (-not (Test-Path (Join-Path $outArm64 $exeName))) {
     throw "Missing arm64 publish output: $outArm64\$exeName"
 }
+
+Copy-Item (Join-Path $outX86 $exeName) (Join-Path $setupOut "TripleSpaceTranslator-win-x86.exe") -Force
+Copy-Item (Join-Path $outX64 $exeName) (Join-Path $setupOut "TripleSpaceTranslator-win-x64.exe") -Force
+Copy-Item (Join-Path $outArm64 $exeName) (Join-Path $setupOut "TripleSpaceTranslator-win-arm64.exe") -Force
 
 if ([string]::IsNullOrWhiteSpace($IsccPath)) {
     $candidates = @(

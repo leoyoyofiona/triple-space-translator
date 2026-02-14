@@ -63,7 +63,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TripleSpaceTranslator-Setup-${{ github.event.inputs.app_version }}
-          path: ${{ steps.locate.outputs.installer_path }}
+          path: |
+            ${{ steps.locate.outputs.installer_path }}
+            windows/dist/installer/TripleSpaceTranslator-win-x86.exe
+            windows/dist/installer/TripleSpaceTranslator-win-x64.exe
+            windows/dist/installer/TripleSpaceTranslator-win-arm64.exe
           if-no-files-found: error
           retention-days: 30
 
