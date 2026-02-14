@@ -1,0 +1,66 @@
+name: Build Windows Installer
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: "Installer version"
+        required: true
+        default: "1.0.0"
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          $version = "${{ github.event.inputs.app_version }}"
+          powershell -ExecutionPolicy Bypass -File "windows/installer/build-installer.ps1" -AppVersion $version
+
+      - name: Locate installer
+        id: locate
+        shell: powershell
+        run: |
+          $version = "${{ github.event.inputs.app_version }}"
+          $installer = "windows/dist/installer/TripleSpaceTranslator-Setup-$version.exe"
+          if (-not (Test-Path $installer)) {
+            throw "Installer not found: $installer"
+          }
+          "installer_path=$installer" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TripleSpaceTranslator-Setup-${{ github.event.inputs.app_version }}
+          path: ${{ steps.locate.outputs.installer_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release asset
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ github.event.inputs.app_version }}
+          name: TripleSpaceTranslator v${{ github.event.inputs.app_version }}
+          allowUpdates: true
+          artifacts: ${{ steps.locate.outputs.installer_path }}
+          replacesArtifacts: true
+          generateReleaseNotes: true

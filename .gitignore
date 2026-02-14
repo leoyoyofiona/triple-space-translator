@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Swift build artifacts
+.build/
+.swift-cache/
+.swiftpm-home/
+.run/
+
+# Distribution artifacts
+/dist/
+/windows/dist/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/

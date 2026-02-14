@@ -1,0 +1,348 @@
+using System.Net.Http;
+using TripleSpaceTranslator.Win.Models;
+using TripleSpaceTranslator.Win.Services;
+using TripleSpaceTranslator.Win.Services.Translation;
+
+namespace TripleSpaceTranslator.Win;
+
+public sealed class MainForm : Form
+{
+    private readonly SettingsService _settingsService = new();
+    private readonly GlobalKeyboardHook _keyboardHook = new();
+    private readonly TripleSpaceDetector _detector = new();
+    private readonly InputAutomationService _inputService = new();
+    private readonly HttpClient _httpClient = new();
+
+    private AppSettings _settings = new();
+
+    private readonly Label _statusLabel = new();
+    private readonly Button _toggleButton = new();
+    private readonly Button _saveButton = new();
+    private readonly NumericUpDown _windowMsNumeric = new();
+    private readonly ComboBox _providerCombo = new();
+    private readonly TextBox _apiKeyText = new();
+    private readonly TextBox _baseUrlText = new();
+    private readonly TextBox _modelText = new();
+    private readonly NotifyIcon _trayIcon = new();
+    private readonly ContextMenuStrip _trayMenu = new();
+    private ToolStripMenuItem? _trayToggleMenuItem;
+
+    private bool _running = true;
+    private bool _busy;
+    private bool _allowClose;
+
+    public MainForm()
+    {
+        Text = "Triple Space Translator (Windows Stable)";
+        Width = 740;
+        Height = 480;
+        StartPosition = FormStartPosition.CenterScreen;
+
+        InitializeUi();
+
+        _settings = _settingsService.Load();
+        ApplySettingsToUi();
+        UpdateStatus("Ready. Press triple-space quickly in any input field.");
+
+        InitializeTray();
+
+        _keyboardHook.KeyPressed += OnGlobalKeyPressed;
+        _keyboardHook.Start();
+
+        FormClosing += OnFormClosing;
+        Resize += OnFormResize;
+    }
+
+    private void InitializeUi()
+    {
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 8,
+            Padding = new Padding(12),
+            AutoSize = true
+        };
+
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        root.Controls.Add(MakeLabel("Trigger window (ms):"), 0, 0);
+        _windowMsNumeric.Minimum = 250;
+        _windowMsNumeric.Maximum = 1500;
+        _windowMsNumeric.Increment = 50;
+        _windowMsNumeric.Value = 500;
+        _windowMsNumeric.Dock = DockStyle.Fill;
+        root.Controls.Add(_windowMsNumeric, 1, 0);
+
+        root.Controls.Add(MakeLabel("Translator provider:"), 0, 1);
+        _providerCombo.Dock = DockStyle.Fill;
+        _providerCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        _providerCombo.Items.AddRange(new object[] { "OpenAI", "LibreTranslate" });
+        root.Controls.Add(_providerCombo, 1, 1);
+
+        root.Controls.Add(MakeLabel("API key:"), 0, 2);
+        _apiKeyText.Dock = DockStyle.Fill;
+        _apiKeyText.UseSystemPasswordChar = true;
+        root.Controls.Add(_apiKeyText, 1, 2);
+
+        root.Controls.Add(MakeLabel("Base URL:"), 0, 3);
+        _baseUrlText.Dock = DockStyle.Fill;
+        root.Controls.Add(_baseUrlText, 1, 3);
+
+        root.Controls.Add(MakeLabel("Model:"), 0, 4);
+        _modelText.Dock = DockStyle.Fill;
+        root.Controls.Add(_modelText, 1, 4);
+
+        _toggleButton.Text = "Pause Hook";
+        _toggleButton.Dock = DockStyle.Fill;
+        _toggleButton.Click += (_, _) => ToggleRunningState();
+        root.Controls.Add(_toggleButton, 0, 5);
+
+        _saveButton.Text = "Save Settings";
+        _saveButton.Dock = DockStyle.Fill;
+        _saveButton.Click += (_, _) =>
+        {
+            CollectSettingsFromUi();
+            _settingsService.Save(_settings);
+            UpdateStatus($"Settings saved: {_settingsService.SettingsPath}");
+        };
+        root.Controls.Add(_saveButton, 1, 5);
+
+        root.Controls.Add(MakeLabel("Status:"), 0, 6);
+        _statusLabel.Dock = DockStyle.Fill;
+        _statusLabel.AutoSize = false;
+        _statusLabel.Height = 120;
+        _statusLabel.BorderStyle = BorderStyle.FixedSingle;
+        _statusLabel.Padding = new Padding(8);
+        root.Controls.Add(_statusLabel, 1, 6);
+
+        var hint = new Label
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = false,
+            Text = "Tips: run as normal user first. If some apps block replacement, try running this app as Administrator.",
+            ForeColor = Color.DimGray
+        };
+        root.Controls.Add(hint, 0, 7);
+        root.SetColumnSpan(hint, 2);
+
+        Controls.Add(root);
+    }
+
+    private void InitializeTray()
+    {
+        _trayMenu.Items.Add("Open", null, (_, _) => ShowMainWindow());
+        _trayToggleMenuItem = new ToolStripMenuItem("Pause Hook", null, (_, _) => ToggleRunningState());
+        _trayMenu.Items.Add(_trayToggleMenuItem);
+        _trayMenu.Items.Add("Exit", null, (_, _) => ExitApplication());
+
+        _trayIcon.Icon = SystemIcons.Application;
+        _trayIcon.Text = "Triple Space Translator";
+        _trayIcon.ContextMenuStrip = _trayMenu;
+        _trayIcon.Visible = true;
+        _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+    }
+
+    private static Label MakeLabel(string text)
+    {
+        return new Label
+        {
+            Text = text,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Dock = DockStyle.Fill,
+            AutoSize = false
+        };
+    }
+
+    private void ApplySettingsToUi()
+    {
+        _windowMsNumeric.Value = Math.Clamp(_settings.TriggerWindowMs, 250, 1500);
+        _providerCombo.SelectedItem = _settings.Provider is "LibreTranslate" ? "LibreTranslate" : "OpenAI";
+        _apiKeyText.Text = _settings.Provider is "LibreTranslate" ? _settings.LibreTranslateApiKey : _settings.OpenAiApiKey;
+        _baseUrlText.Text = _settings.Provider is "LibreTranslate" ? _settings.LibreTranslateUrl : _settings.OpenAiBaseUrl;
+        _modelText.Text = _settings.OpenAiModel;
+
+        _providerCombo.SelectedIndexChanged += (_, _) =>
+        {
+            var provider = (_providerCombo.SelectedItem as string) ?? "OpenAI";
+            if (provider == "LibreTranslate")
+            {
+                _baseUrlText.Text = _settings.LibreTranslateUrl;
+                _apiKeyText.Text = _settings.LibreTranslateApiKey;
+                _modelText.Enabled = false;
+            }
+            else
+            {
+                _baseUrlText.Text = _settings.OpenAiBaseUrl;
+                _apiKeyText.Text = _settings.OpenAiApiKey;
+                _modelText.Enabled = true;
+            }
+        };
+
+        _modelText.Enabled = (_providerCombo.SelectedItem as string) != "LibreTranslate";
+    }
+
+    private void CollectSettingsFromUi()
+    {
+        var provider = (_providerCombo.SelectedItem as string) ?? "OpenAI";
+
+        _settings.TriggerWindowMs = (int)_windowMsNumeric.Value;
+        _settings.Provider = provider;
+
+        if (provider == "LibreTranslate")
+        {
+            _settings.LibreTranslateUrl = _baseUrlText.Text.Trim();
+            _settings.LibreTranslateApiKey = _apiKeyText.Text;
+        }
+        else
+        {
+            _settings.OpenAiBaseUrl = _baseUrlText.Text.Trim();
+            _settings.OpenAiApiKey = _apiKeyText.Text;
+            _settings.OpenAiModel = string.IsNullOrWhiteSpace(_modelText.Text) ? "gpt-4o-mini" : _modelText.Text.Trim();
+        }
+    }
+
+    private void OnGlobalKeyPressed(Keys key)
+    {
+        if (!_running || key != Keys.Space)
+        {
+            return;
+        }
+
+        CollectSettingsFromUi();
+
+        var fired = _detector.RegisterPress(_settings.TriplePressCount, _settings.TriggerWindowMs);
+        if (!fired)
+        {
+            return;
+        }
+
+        BeginInvoke(new Action(() => _ = HandleTriggerAsync()));
+    }
+
+    private async Task HandleTriggerAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            UpdateStatus("Triple-space detected. Reading focused input...");
+
+            var original = _inputService.ReadFocusedText();
+            if (string.IsNullOrWhiteSpace(original))
+            {
+                UpdateStatus("No readable focused input.");
+                return;
+            }
+
+            var text = InputAutomationService.RemoveTrailingSpaces(original, _settings.TriplePressCount);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                UpdateStatus("Input is empty after removing trigger spaces.");
+                return;
+            }
+
+            if (!InputAutomationService.LooksLikeChinese(text))
+            {
+                UpdateStatus("Focused text does not contain Chinese. Skipped.");
+                return;
+            }
+
+            UpdateStatus("Translating...");
+            var translator = TranslatorFactory.Create(_settings, _httpClient);
+            var translated = await translator.TranslateAsync(text, _settings.SourceLanguage, _settings.TargetLanguage, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(translated))
+            {
+                UpdateStatus("Translator returned empty content.");
+                return;
+            }
+
+            var replaced = _inputService.ReplaceFocusedText(translated);
+            UpdateStatus(replaced
+                ? "Translation applied to focused input."
+                : "Translation succeeded but replacement failed in this control.");
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus($"Error: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void UpdateStatus(string message)
+    {
+        _statusLabel.Text = $"{DateTime.Now:HH:mm:ss}  {message}";
+        _trayIcon.Text = TrimTrayText(message);
+    }
+
+    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (!_allowClose && e.CloseReason == CloseReason.UserClosing)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
+        _keyboardHook.Stop();
+        _keyboardHook.Dispose();
+        _httpClient.Dispose();
+        _settingsService.Save(_settings);
+        _trayIcon.Visible = false;
+        _trayIcon.Dispose();
+        _trayMenu.Dispose();
+    }
+
+    private void OnFormResize(object? sender, EventArgs e)
+    {
+        if (WindowState == FormWindowState.Minimized)
+        {
+            Hide();
+            _trayIcon.ShowBalloonTip(1200, "Triple Space Translator", "App is still running in tray.", ToolTipIcon.Info);
+        }
+    }
+
+    private void ToggleRunningState()
+    {
+        _running = !_running;
+        _toggleButton.Text = _running ? "Pause Hook" : "Resume Hook";
+        if (_trayToggleMenuItem is not null)
+        {
+            _trayToggleMenuItem.Text = _running ? "Pause Hook" : "Resume Hook";
+        }
+        UpdateStatus(_running ? "Hook resumed." : "Hook paused.");
+    }
+
+    private void ShowMainWindow()
+    {
+        Show();
+        WindowState = FormWindowState.Normal;
+        BringToFront();
+        Activate();
+    }
+
+    private void ExitApplication()
+    {
+        _allowClose = true;
+        Close();
+    }
+
+    private static string TrimTrayText(string message)
+    {
+        const int maxLen = 63;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return "Triple Space Translator";
+        }
+
+        return message.Length <= maxLen ? message : message[..maxLen];
+    }
+}
