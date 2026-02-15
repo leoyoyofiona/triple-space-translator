@@ -10,11 +10,13 @@ APP_VERSION="$1"
 APP_NAME="TripleSpaceTranslator"
 EXECUTABLE_NAME="TripleSpaceTranslatorApp"
 BUNDLE_ID="com.leo.triplespacetranslator"
+ICON_FILE_NAME="TripleSpaceTranslator.icns"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DERIVED_DATA_DIR="$ROOT_DIR/.xcode-build"
 DIST_DIR="$ROOT_DIR/macos-dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
+ICON_PATH="$ROOT_DIR/assets/macos/$ICON_FILE_NAME"
 
 rm -rf "$DERIVED_DATA_DIR" "$DIST_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
@@ -40,6 +42,10 @@ fi
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 chmod +x "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 
+if [[ -f "$ICON_PATH" ]]; then
+  cp "$ICON_PATH" "$APP_DIR/Contents/Resources/$ICON_FILE_NAME"
+fi
+
 cat > "$APP_DIR/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,6 +61,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
   <string>$BUNDLE_ID</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
+  <key>CFBundleIconFile</key>
+  <string>$ICON_FILE_NAME</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
