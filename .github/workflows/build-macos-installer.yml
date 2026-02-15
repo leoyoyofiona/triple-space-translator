@@ -36,11 +36,21 @@ jobs:
           echo "app_version=$version" >> "$GITHUB_OUTPUT"
           echo "release_tag=v$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build package
+      - name: Prepare prebuilt package
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/build-macos-package.sh "${{ steps.version.outputs.app_version }}"
+          version="${{ steps.version.outputs.app_version }}"
+          mkdir -p macos-dist
+          cp "release-assets/macos/TripleSpaceTranslator-macOS26-universal.zip" "macos-dist/TripleSpaceTranslator-macOS26-universal-$version.zip"
+          cp "release-assets/macos/TripleSpaceTranslator-macOS26-universal.dmg" "macos-dist/TripleSpaceTranslator-macOS26-universal-$version.dmg"
+          (
+            cd macos-dist
+            shasum -a 256 \
+              "TripleSpaceTranslator-macOS26-universal-$version.zip" \
+              "TripleSpaceTranslator-macOS26-universal-$version.dmg" \
+              > "SHA256-$version.txt"
+          )
 
       - name: Locate assets
         id: locate
