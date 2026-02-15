@@ -69,6 +69,15 @@
   - macOS：`.github/workflows/build-macos-installer.yml`
   - Windows：`.github/workflows/build-windows-installer.yml`
 
+## iPhone（iOS）版本
+
+- 已新增 iOS 自定义键盘 MVP 工程：
+  - `ios/TripleSpaceTranslatorIOS/TripleSpaceTranslatorIOS.xcodeproj`
+- 详细说明：
+  - `ios/README-iOS.md`
+- 交互方式：
+  - 在该自定义键盘内，`0.5 秒内连按 3 次 space` 触发中译英并替换
+
 ## 实现说明
 
 - 全局按键监听：`CGEvent.tapCreate`（listen only）
