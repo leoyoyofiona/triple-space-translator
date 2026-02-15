@@ -38,15 +38,26 @@
    - Input Monitoring
 4. 授权后建议重启一次 App。
 
-## macOS 安装包下载（GitHub）
+## 下载地址（macOS / Windows）
 
-- 下载页面（Release）：
+- GitHub Releases 总入口：
   - https://github.com/leoyoyofiona/triple-space-translator/releases
-- macOS 安装包文件名：
-  - `TripleSpaceTranslator-macOS26-universal-<version>.dmg`
-  - `TripleSpaceTranslator-macOS26-universal-<version>.zip`
+
+- macOS 下载（当前版本 `v1.0.4`）：
+  - DMG（推荐安装）：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.4/TripleSpaceTranslator-macOS26-universal-1.0.4.dmg
+  - ZIP（便携）：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.4/TripleSpaceTranslator-macOS26-universal-1.0.4.zip
+
+- Windows 下载（当前稳定版 `v1.0.2`）：
+  - EXE 安装包：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.2/TripleSpaceTranslator-Setup-1.0.2.exe
+
+- 找不到直链时：
+  - 打开 Releases 页面，按系统下载对应文件：
+  - macOS：`TripleSpaceTranslator-macOS26-universal-*.dmg` 或 `*.zip`
+  - Windows：`TripleSpaceTranslator-Setup-*.exe`
+
 - 自动打包工作流：
-  - `.github/workflows/build-macos-installer.yml`
+  - macOS：`.github/workflows/build-macos-installer.yml`
+  - Windows：`.github/workflows/build-windows-installer.yml`
 
 ## 实现说明
 
