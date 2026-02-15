@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -134,10 +135,10 @@ public sealed class InputAutomationService
 
     private static void SendCtrlChord(Keys key)
     {
-        SendKey(Keys.ControlKey, keyDown: true);
+        SendKey(Keys.LControlKey, keyDown: true);
         SendKey(key, keyDown: true);
         SendKey(key, keyDown: false);
-        SendKey(Keys.ControlKey, keyDown: false);
+        SendKey(Keys.LControlKey, keyDown: false);
     }
 
     private static void SendKey(Keys key, bool keyDown = true)
@@ -153,7 +154,7 @@ public sealed class InputAutomationService
                     wScan = 0,
                     dwFlags = keyDown ? 0u : 0x0002u,
                     time = 0,
-                    dwExtraInfo = IntPtr.Zero
+                    dwExtraInfo = UIntPtr.Zero
                 }
             }
         };
@@ -161,7 +162,8 @@ public sealed class InputAutomationService
         var sent = SendInput(1, new[] { input }, Marshal.SizeOf<Input>());
         if (sent == 0)
         {
-            throw new InvalidOperationException("Failed to send key input.");
+            var error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"Failed to send key input. Win32Error={error} ({new Win32Exception(error).Message})");
         }
     }
 
@@ -180,7 +182,7 @@ public sealed class InputAutomationService
                         wScan = ch,
                         dwFlags = 0x0004,
                         time = 0,
-                        dwExtraInfo = IntPtr.Zero
+                        dwExtraInfo = UIntPtr.Zero
                     }
                 }
             };
@@ -191,7 +193,8 @@ public sealed class InputAutomationService
             var sent = SendInput(2, new[] { down, up }, Marshal.SizeOf<Input>());
             if (sent == 0)
             {
-                throw new InvalidOperationException("Failed to send unicode input.");
+                var error = Marshal.GetLastWin32Error();
+                throw new InvalidOperationException($"Failed to send unicode input. Win32Error={error} ({new Win32Exception(error).Message})");
             }
         }
     }
@@ -207,7 +210,32 @@ public sealed class InputAutomationService
     private struct InputUnion
     {
         [FieldOffset(0)]
+        public MouseInput mi;
+
+        [FieldOffset(0)]
         public KeyboardInput ki;
+
+        [FieldOffset(0)]
+        public HardwareInput hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HardwareInput
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -217,7 +245,7 @@ public sealed class InputAutomationService
         public ushort wScan;
         public uint dwFlags;
         public uint time;
-        public IntPtr dwExtraInfo;
+        public UIntPtr dwExtraInfo;
     }
 
     [DllImport("user32.dll", SetLastError = true)]
