@@ -13,6 +13,16 @@
 任意输入框打中文，0.5秒内连按3次空格❗️  
 中文直接秒变英文，自动替换原文，不用多走一步。
 
+### 效果展示
+
+翻译前（中文输入）：
+
+![翻译前中文输入](assets/screenshots/demo-zh-input.png)
+
+翻译后（英文替换）：
+
+![翻译后英文输出](assets/screenshots/demo-en-output.png)
+
 🌍 适配所有高频场景
 
 - ChatGPT / Claude 等英文AI对话（最顺手）
