@@ -1,0 +1,85 @@
+name: Build macOS Installer
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: "Installer version (without v prefix)"
+        required: true
+        default: "1.0.3"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-macos-installer:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ github.event.inputs.app_version }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+          fi
+          echo "app_version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build-macos-package.sh "${{ steps.version.outputs.app_version }}"
+
+      - name: Locate assets
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.app_version }}"
+          zip="macos-dist/TripleSpaceTranslator-macOS26-universal-$version.zip"
+          dmg="macos-dist/TripleSpaceTranslator-macOS26-universal-$version.dmg"
+          sha="macos-dist/SHA256-$version.txt"
+
+          [[ -f "$zip" ]] || { echo "Missing $zip"; exit 1; }
+          [[ -f "$dmg" ]] || { echo "Missing $dmg"; exit 1; }
+          [[ -f "$sha" ]] || { echo "Missing $sha"; exit 1; }
+
+          echo "zip_path=$zip" >> "$GITHUB_OUTPUT"
+          echo "dmg_path=$dmg" >> "$GITHUB_OUTPUT"
+          echo "sha_path=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TripleSpaceTranslator-macOS-${{ steps.version.outputs.app_version }}
+          path: |
+            ${{ steps.locate.outputs.zip_path }}
+            ${{ steps.locate.outputs.dmg_path }}
+            ${{ steps.locate.outputs.sha_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release assets
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.release_tag }}
+          name: TripleSpaceTranslator v${{ steps.version.outputs.app_version }}
+          allowUpdates: true
+          replacesArtifacts: false
+          artifacts: |
+            ${{ steps.locate.outputs.zip_path }}
+            ${{ steps.locate.outputs.dmg_path }}
+            ${{ steps.locate.outputs.sha_path }}
+          generateReleaseNotes: true

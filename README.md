@@ -14,6 +14,16 @@
    - Input Monitoring
 4. 授权后建议重启一次 App。
 
+## macOS 安装包下载（GitHub）
+
+- 下载页面（Release）：
+  - https://github.com/leoyoyofiona/triple-space-translator/releases
+- macOS 安装包文件名：
+  - `TripleSpaceTranslator-macOS26-universal-<version>.dmg`
+  - `TripleSpaceTranslator-macOS26-universal-<version>.zip`
+- 自动打包工作流：
+  - `.github/workflows/build-macos-installer.yml`
+
 ## 实现说明
 
 - 全局按键监听：`CGEvent.tapCreate`（listen only）
