@@ -19,7 +19,8 @@ OutputBaseFilename=TripleSpaceTranslator-Setup-{#AppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x86compatible and x64compatible and arm64
+ArchitecturesAllowed=x86compatible or x64compatible or arm64
+ArchitecturesInstallIn64BitMode=x64compatible or arm64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
