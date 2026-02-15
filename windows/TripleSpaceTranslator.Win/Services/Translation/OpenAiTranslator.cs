@@ -23,7 +23,7 @@ public sealed class OpenAiTranslator : ITranslator
             throw new InvalidOperationException("OpenAI API key is empty. Set it in the app settings.");
         }
 
-        var endpoint = _settings.OpenAiBaseUrl.TrimEnd('/') + "/chat/completions";
+        var endpoint = BuildChatCompletionsEndpoint(_settings.OpenAiBaseUrl);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.OpenAiApiKey);
@@ -53,7 +53,7 @@ public sealed class OpenAiTranslator : ITranslator
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"OpenAI request failed ({(int)response.StatusCode}): {responseBody}");
+            throw new InvalidOperationException($"OpenAI request failed ({(int)response.StatusCode}) at {endpoint}: {responseBody}");
         }
 
         using var json = JsonDocument.Parse(responseBody);
@@ -64,5 +64,36 @@ public sealed class OpenAiTranslator : ITranslator
             .GetString();
 
         return content?.Trim() ?? string.Empty;
+    }
+
+    private static string BuildChatCompletionsEndpoint(string? rawBaseUrl)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(rawBaseUrl)
+            ? "https://api.openai.com/v1"
+            : rawBaseUrl.Trim();
+
+        baseUrl = baseUrl.TrimEnd('/');
+
+        if (baseUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUrl;
+        }
+
+        if (baseUrl.EndsWith("/responses", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUrl[..^"/responses".Length] + "/chat/completions";
+        }
+
+        if (baseUrl.EndsWith("/chat", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUrl + "/completions";
+        }
+
+        if (baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUrl + "/chat/completions";
+        }
+
+        return baseUrl + "/v1/chat/completions";
     }
 }

@@ -23,6 +23,11 @@ The app supports two providers:
 
 Configure provider/API key/base URL in app UI and click `Save Settings`.
 
+OpenAI config example:
+
+- `Base URL`: `https://api.openai.com/v1` (do not append `/responses`)
+- `Model`: `gpt-4o-mini`
+
 Settings file path:
 
 - `%APPDATA%\\TripleSpaceTranslator\\settings.json`
@@ -39,7 +44,7 @@ dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=
 
 Output example:
 
-- `bin\\Release\\net8.0-windows10.0.19041.0\\win-x64\\publish\\TripleSpaceTranslator.Win.exe`
+- `bin\\Release\\net8.0-windows\\win-x64\\publish\\TripleSpaceTranslator.Win.exe`
 
 ### 2) ARM build (win-arm64)
 
@@ -49,7 +54,7 @@ dotnet publish -c Release -r win-arm64 --self-contained true /p:PublishSingleFil
 
 Output example:
 
-- `bin\\Release\\net8.0-windows10.0.19041.0\\win-arm64\\publish\\TripleSpaceTranslator.Win.exe`
+- `bin\\Release\\net8.0-windows\\win-arm64\\publish\\TripleSpaceTranslator.Win.exe`
 
 ## Distribution notes
 
