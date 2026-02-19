@@ -1,103 +1,69 @@
-# 中文三空格翻英文（macOS）
+# Triple Space Translator
 
-## App 介绍文案
+Language: **English** | [中文](README.zh-CN.md)
 
-### 三连空格，中文秒变英文：我做了个全局翻译小工具
+Type Chinese, press `Space` 3 times within `0.5s`, and replace it with English instantly.
 
-谁懂啊家人们😭 用国外AI大模型真的太费劲儿了。  
-明明中文思路很顺畅，非要先写中文→复制→翻译→粘贴，思路全被打断。
+## Demo
 
-被逼无奈自己做了个翻译小工具，直接封神✅
+Before (Chinese input):
 
-✨ 用法巨简单，零门槛上手  
-任意输入框打中文，0.5秒内连按3次空格❗️  
-中文直接秒变英文，自动替换原文，不用多走一步。
+![Before Translation](assets/screenshots/demo-zh-input.png)
 
-### 效果展示
+After (English replacement):
 
-翻译前（中文输入）：
+![After Translation](assets/screenshots/demo-en-output.png)
 
-![翻译前中文输入](assets/screenshots/demo-zh-input.png)
+## Why this app
 
-翻译后（英文替换）：
+When chatting with global AI models (ChatGPT / Claude / Grok / Gemini), English prompts often produce more stable understanding and output.  
+This app keeps your thinking flow: write in Chinese first, then trigger instant English replacement with triple-space.
 
-![翻译后英文输出](assets/screenshots/demo-en-output.png)
+## Features
 
-🌍 适配所有高频场景
+- Triple-space trigger (`0.5s`, configurable on Windows)
+- Input replacement in common text fields
+- macOS + Windows download packages
+- iOS keyboard extension MVP available in repo
+- Translation providers:
+  - macOS / iOS: Apple Translation framework
+  - Windows: OpenAI or LibreTranslate
 
-- ChatGPT / Claude 等英文AI对话（最顺手）
-- 微信、浏览器、文档快速输出英文
-- 再也不用来回切换翻译网站，省出超多时间
+## Downloads
 
-💻 关键是！Windows / macOS 都能用。  
-打英文再也不用硬憋，思路不中断真的太香了👏
+- Releases page:
+  - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
+- macOS (latest published package, current `v1.0.5`):
+  - [DMG](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.dmg)
+  - [ZIP](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.zip)
+- Windows (latest stable installer, current `v1.0.2`):
+  - [EXE](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.2/TripleSpaceTranslator-Setup-1.0.2.exe)
 
----
+## Platform Guides
 
-这是一个 macOS 普通窗口 App：
-- 在任意 App 输入框输入中文
-- 0.5 秒内快速连按 3 次空格
-- 自动把当前输入框内容翻译成英文并替换
+- Windows guide:
+  - `windows/README-Windows.md`
+- iOS keyboard MVP guide:
+  - `ios/README-iOS.md`
 
-## 运行方式
+## macOS Local Run
 
-1. 用 Xcode 打开目录 `/Users/leo/Downloads/打字中英文双显`（作为 Swift Package 打开即可）。
-2. 选择可执行目标 `TripleSpaceTranslatorApp`，运行到 `My Mac`。
-3. 在主界面点击授权按钮，开启：
+1. Open this folder in Xcode as a Swift Package.
+2. Run executable target `TripleSpaceTranslatorApp` on `My Mac`.
+3. Grant permissions in app UI:
    - Accessibility
    - Input Monitoring
-4. 授权后建议重启一次 App。
+4. Restart app after first permission grant.
 
-## 下载地址（macOS / Windows）
+## Notes
 
-- GitHub Releases 总入口：
-  - https://github.com/leoyoyofiona/triple-space-translator/releases
+- Some apps/controls may block direct replacement.
+- On macOS/iOS, first translation of a language pair may require Apple language resources download.
+- If replacement is blocked in protected apps, try running the Windows app as Administrator.
 
-- macOS 下载（当前版本 `v1.0.4`）：
-  - DMG（推荐安装）：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.4/TripleSpaceTranslator-macOS26-universal-1.0.4.dmg
-  - ZIP（便携）：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.4/TripleSpaceTranslator-macOS26-universal-1.0.4.zip
+## CI Workflows
 
-- Windows 下载（当前稳定版 `v1.0.2`）：
-  - EXE 安装包：https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.2/TripleSpaceTranslator-Setup-1.0.2.exe
-
-- 找不到直链时：
-  - 打开 Releases 页面，按系统下载对应文件：
-  - macOS：`TripleSpaceTranslator-macOS26-universal-*.dmg` 或 `*.zip`
-  - Windows：`TripleSpaceTranslator-Setup-*.exe`
-
-- 自动打包工作流：
-  - macOS：`.github/workflows/build-macos-installer.yml`
-  - Windows：`.github/workflows/build-windows-installer.yml`
-
-## iPhone（iOS）版本
-
-- 已新增 iOS 自定义键盘 MVP 工程：
-  - `ios/TripleSpaceTranslatorIOS/TripleSpaceTranslatorIOS.xcodeproj`
-- 详细说明：
-  - `ios/README-iOS.md`
-- 交互方式：
-  - 在该自定义键盘内，`0.5 秒内连按 3 次 space` 触发中译英并替换
-
-## 实现说明
-
-- 全局按键监听：`CGEvent.tapCreate`（listen only）
-- 触发条件：0.5 秒内 3 次空格
-- 文本读写：Accessibility API（`kAXFocusedUIElementAttribute` + `kAXValueAttribute`）
-- 翻译引擎：系统 `Translation.framework`（目标语言英文）
-
-## 已知限制
-
-- 某些 App 的输入控件不支持 AX 值写入，可能替换失败。
-- 首次使用某个语言对时，系统可能需要下载语言资源。
-- 为避免误覆盖：触发到翻译完成期间，如果你继续输入，当前轮次会自动取消替换。
-
-## Windows 版本
-
-- Windows stable source is in:
-  - `/Users/leo/Downloads/打字中英文双显/windows/TripleSpaceTranslator.Win`
-- Build/distribution guide:
-  - `/Users/leo/Downloads/打字中英文双显/windows/README-Windows.md`
-- Installer script (Inno Setup):
-  - `/Users/leo/Downloads/打字中英文双显/windows/installer/build-installer.ps1`
-- GitHub one-click installer workflow:
-  - `/Users/leo/Downloads/打字中英文双显/.github/workflows/build-windows-installer.yml`
+- macOS package workflow:
+  - `.github/workflows/build-macos-installer.yml`
+- Windows installer workflow:
+  - `.github/workflows/build-windows-installer.yml`
