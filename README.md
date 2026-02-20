@@ -32,6 +32,7 @@ This app keeps your thinking flow: write in Chinese first, then trigger instant 
 - Translation providers:
   - macOS / iOS: Apple Translation framework
   - Windows: OpenAI or LibreTranslate (supports one-click local Docker mode)
+  - Windows default first-run: public LibreTranslate (no API key required)
 
 ## New: Reverse Toggle Translation
 

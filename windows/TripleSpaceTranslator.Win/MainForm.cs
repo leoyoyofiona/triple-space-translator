@@ -128,7 +128,7 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = false,
-            Text = "Tips: run as normal user first. If some apps block replacement, try running this app as Administrator.",
+            Text = "Tips: default mode uses LibreTranslate (no API key needed). If some apps block replacement, try running this app as Administrator.",
             ForeColor = Color.DimGray
         };
         root.Controls.Add(hint, 0, 7);

@@ -8,7 +8,8 @@ public sealed class AppSettings
     public string TargetLanguage { get; set; } = "en";
 
     // Translation provider: OpenAI or LibreTranslate
-    public string Provider { get; set; } = "OpenAI";
+    // Default to LibreTranslate for out-of-box usage without API key.
+    public string Provider { get; set; } = "LibreTranslate";
 
     // OpenAI-compatible settings
     public string OpenAiBaseUrl { get; set; } = "https://api.openai.com/v1";
@@ -16,6 +17,6 @@ public sealed class AppSettings
     public string OpenAiModel { get; set; } = "gpt-4o-mini";
 
     // LibreTranslate settings (for self-host deployments)
-    public string LibreTranslateUrl { get; set; } = "https://libretranslate.com/translate";
+    public string LibreTranslateUrl { get; set; } = "https://translate.argosopentech.com/translate";
     public string LibreTranslateApiKey { get; set; } = string.Empty;
 }

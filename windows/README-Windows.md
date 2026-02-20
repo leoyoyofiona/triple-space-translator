@@ -24,6 +24,12 @@ The app supports two providers:
 - `OpenAI` (recommended for quality)
 - `LibreTranslate` (works with local/self-hosted endpoint)
 
+Default behavior (out-of-box):
+
+- Fresh install defaults to `LibreTranslate`.
+- No API key is required for first use.
+- If one public endpoint is unavailable, app will auto-try fallback endpoint(s).
+
 ## One-click local LibreTranslate (faster, no online API latency)
 
 Use local translation service on the same Windows machine:

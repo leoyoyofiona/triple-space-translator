@@ -33,7 +33,14 @@ public sealed class SettingsService
 
             var json = File.ReadAllText(SettingsPath);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-            return settings ?? new AppSettings();
+            var normalized = settings ?? new AppSettings();
+            var changed = NormalizeForOutOfBox(normalized);
+            if (changed)
+            {
+                Save(normalized);
+            }
+
+            return normalized;
         }
         catch
         {
@@ -45,5 +52,25 @@ public sealed class SettingsService
     {
         var json = JsonSerializer.Serialize(settings, JsonOptions);
         File.WriteAllText(SettingsPath, json);
+    }
+
+    private static bool NormalizeForOutOfBox(AppSettings settings)
+    {
+        var changed = false;
+
+        if (string.Equals(settings.Provider, "OpenAI", StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
+        {
+            settings.Provider = "LibreTranslate";
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.LibreTranslateUrl))
+        {
+            settings.LibreTranslateUrl = "https://translate.argosopentech.com/translate";
+            changed = true;
+        }
+
+        return changed;
     }
 }

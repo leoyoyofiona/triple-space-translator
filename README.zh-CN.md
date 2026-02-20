@@ -32,6 +32,7 @@
 - 翻译引擎：
   - macOS / iOS：Apple 系统 Translation.framework
   - Windows：OpenAI 或 LibreTranslate（支持 Docker 本地一键模式）
+  - Windows 首次安装默认：公共 LibreTranslate（无需 API key）
 
 ## 新增：回切翻译
 
