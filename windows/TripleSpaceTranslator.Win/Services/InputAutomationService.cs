@@ -5,9 +5,16 @@ using System.Windows.Forms;
 
 namespace TripleSpaceTranslator.Win.Services;
 
+public enum TranslationDirection
+{
+    ZhToEn,
+    EnToZh
+}
+
 public sealed class InputAutomationService
 {
     private static readonly Regex ChineseRegex = new("[\u3400-\u9FFF]", RegexOptions.Compiled);
+    private static readonly Regex EnglishRegex = new("[A-Za-z]", RegexOptions.Compiled);
 
     public string? ReadFocusedText()
     {
@@ -27,6 +34,43 @@ public sealed class InputAutomationService
     public static bool LooksLikeChinese(string value)
     {
         return ChineseRegex.IsMatch(value);
+    }
+
+    public static bool LooksLikeEnglish(string value)
+    {
+        return EnglishRegex.IsMatch(value);
+    }
+
+    public static TranslationDirection? DetectPreferredDirection(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var zhCount = 0;
+        var enCount = 0;
+
+        foreach (var ch in value)
+        {
+            if (IsChineseChar(ch))
+            {
+                zhCount++;
+                continue;
+            }
+
+            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+            {
+                enCount++;
+            }
+        }
+
+        if (zhCount == 0 && enCount == 0)
+        {
+            return null;
+        }
+
+        return zhCount >= enCount ? TranslationDirection.ZhToEn : TranslationDirection.EnToZh;
     }
 
     public static string RemoveTrailingSpaces(string input, int count)
@@ -250,4 +294,13 @@ public sealed class InputAutomationService
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, Input[] pInputs, int cbSize);
+
+    private static bool IsChineseChar(char ch)
+    {
+        var v = ch;
+        return
+            (v >= 0x3400 && v <= 0x4DBF) ||
+            (v >= 0x4E00 && v <= 0x9FFF) ||
+            (v >= 0xF900 && v <= 0xFAFF);
+    }
 }

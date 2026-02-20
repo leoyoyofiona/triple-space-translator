@@ -37,7 +37,7 @@ public sealed class OpenAiTranslator : ITranslator
                 new
                 {
                     role = "system",
-                    content = "You are a translation engine. Translate Chinese to concise natural English. Return only translated text."
+                    content = BuildSystemPrompt(sourceLang, targetLang)
                 },
                 new
                 {
@@ -64,6 +64,23 @@ public sealed class OpenAiTranslator : ITranslator
             .GetString();
 
         return content?.Trim() ?? string.Empty;
+    }
+
+    private static string BuildSystemPrompt(string sourceLang, string targetLang)
+    {
+        var sourceLabel = ToLanguageLabel(sourceLang);
+        var targetLabel = ToLanguageLabel(targetLang);
+        return $"You are a translation engine. Translate {sourceLabel} to concise natural {targetLabel}. Return only translated text.";
+    }
+
+    private static string ToLanguageLabel(string lang)
+    {
+        return lang.ToLowerInvariant() switch
+        {
+            "zh" or "zh-cn" or "zh-hans" => "Chinese",
+            "en" or "en-us" => "English",
+            _ => lang
+        };
     }
 
     private static string BuildChatCompletionsEndpoint(string? rawBaseUrl)

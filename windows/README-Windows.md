@@ -6,7 +6,10 @@ This is the Windows stable edition of your app.
 
 - Global trigger: press `Space` 3 times within `0.5s` (configurable).
 - Reads focused text using Windows UI Automation.
-- If focused text contains Chinese, translates to English.
+- Supports bidirectional translation and reverse toggle:
+  - Chinese -> English
+  - English -> Chinese
+  - Press triple-space again to toggle back to the previous language result.
 - Replaces text in the focused input using a fallback chain:
   - ValuePattern set
   - Selected-text typing

@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text;
 using TripleSpaceTranslator.Win.Models;
 using TripleSpaceTranslator.Win.Services;
 using TripleSpaceTranslator.Win.Services.Translation;
@@ -30,6 +31,12 @@ public sealed class MainForm : Form
     private bool _running = true;
     private bool _busy;
     private bool _allowClose;
+    private readonly Dictionary<string, string> _translationCache = new(StringComparer.Ordinal);
+    private readonly Queue<string> _translationCacheOrder = new();
+    private (string Left, string Right)? _lastTranslationPair;
+    private string? _lastAppliedOutputText;
+    private DateTime _lastAppliedAtUtc = DateTime.MinValue;
+    private const int MaxCacheEntries = 200;
 
     public MainForm()
     {
@@ -42,7 +49,7 @@ public sealed class MainForm : Form
 
         _settings = _settingsService.Load();
         ApplySettingsToUi();
-        UpdateStatus("Ready. Press triple-space quickly in any input field.");
+        UpdateStatus("Ready. Press triple-space quickly in any input field (bidirectional toggle enabled).");
 
         InitializeTray();
 
@@ -247,15 +254,54 @@ public sealed class MainForm : Form
                 return;
             }
 
-            if (!InputAutomationService.LooksLikeChinese(text))
+            if (TryResolveToggleTarget(text, out var pairTarget))
             {
-                UpdateStatus("Focused text does not contain Chinese. Skipped.");
+                var toggled = _inputService.ReplaceFocusedText(pairTarget);
+                if (toggled)
+                {
+                    CacheTranslationPair(text, pairTarget);
+                    _lastTranslationPair = (text, pairTarget);
+                    RecordAppliedOutput(pairTarget);
+                    UpdateStatus("Reverse toggle applied to focused input.");
+                }
+                else
+                {
+                    UpdateStatus("Reverse toggle matched but replacement failed in this control.");
+                }
                 return;
             }
 
-            UpdateStatus("Translating...");
+            if (TryGetCachedTranslation(text, out var cachedTarget))
+            {
+                var replacedFromCache = _inputService.ReplaceFocusedText(cachedTarget);
+                if (replacedFromCache)
+                {
+                    CacheTranslationPair(text, cachedTarget);
+                    _lastTranslationPair = (text, cachedTarget);
+                    RecordAppliedOutput(cachedTarget);
+                    UpdateStatus("Translation toggled from recent cache.");
+                }
+                else
+                {
+                    UpdateStatus("Cache toggle matched but replacement failed in this control.");
+                }
+                return;
+            }
+
+            var direction = InputAutomationService.DetectPreferredDirection(text);
+            if (direction is null)
+            {
+                UpdateStatus("Focused text does not contain identifiable Chinese/English content. Skipped.");
+                return;
+            }
+
+            var sourceLang = direction == TranslationDirection.ZhToEn ? "zh" : "en";
+            var targetLang = direction == TranslationDirection.ZhToEn ? "en" : "zh";
+            var targetLabel = direction == TranslationDirection.ZhToEn ? "English" : "Chinese";
+
+            UpdateStatus($"Translating to {targetLabel}...");
             var translator = TranslatorFactory.Create(_settings, _httpClient);
-            var translated = await translator.TranslateAsync(text, _settings.SourceLanguage, _settings.TargetLanguage, CancellationToken.None);
+            var translated = await translator.TranslateAsync(text, sourceLang, targetLang, CancellationToken.None);
             if (string.IsNullOrWhiteSpace(translated))
             {
                 UpdateStatus("Translator returned empty content.");
@@ -263,9 +309,17 @@ public sealed class MainForm : Form
             }
 
             var replaced = _inputService.ReplaceFocusedText(translated);
-            UpdateStatus(replaced
-                ? "Translation applied to focused input."
-                : "Translation succeeded but replacement failed in this control.");
+            if (replaced)
+            {
+                CacheTranslationPair(text, translated);
+                _lastTranslationPair = (text, translated);
+                RecordAppliedOutput(translated);
+                UpdateStatus($"Translation applied to focused input ({targetLabel}).");
+            }
+            else
+            {
+                UpdateStatus("Translation succeeded but replacement failed in this control.");
+            }
         }
         catch (Exception ex)
         {
@@ -344,5 +398,197 @@ public sealed class MainForm : Form
         }
 
         return message.Length <= maxLen ? message : message[..maxLen];
+    }
+
+    private bool TryResolveToggleTarget(string currentInput, out string target)
+    {
+        target = string.Empty;
+        if (_lastTranslationPair is null || string.IsNullOrWhiteSpace(_lastAppliedOutputText))
+        {
+            return false;
+        }
+
+        if ((DateTime.UtcNow - _lastAppliedAtUtc).TotalSeconds > 90)
+        {
+            return false;
+        }
+
+        var pair = _lastTranslationPair.Value;
+        var currentMatchesEither = LooksEquivalent(currentInput, pair.Left) || LooksEquivalent(currentInput, pair.Right);
+        if (!currentMatchesEither && (DateTime.UtcNow - _lastAppliedAtUtc).TotalSeconds > 2)
+        {
+            return false;
+        }
+
+        if (LooksEquivalent(_lastAppliedOutputText!, pair.Left))
+        {
+            target = pair.Right;
+            return true;
+        }
+
+        if (LooksEquivalent(_lastAppliedOutputText!, pair.Right))
+        {
+            target = pair.Left;
+            return true;
+        }
+
+        if (LooksEquivalent(currentInput, pair.Left))
+        {
+            target = pair.Right;
+            return true;
+        }
+
+        if (LooksEquivalent(currentInput, pair.Right))
+        {
+            target = pair.Left;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetCachedTranslation(string source, out string target)
+    {
+        target = string.Empty;
+        var normalizedSource = NormalizeCacheKey(source);
+        if (string.IsNullOrEmpty(normalizedSource))
+        {
+            return false;
+        }
+
+        if (_translationCache.TryGetValue(normalizedSource, out var direct) && !LooksEquivalent(direct, source))
+        {
+            target = direct;
+            return true;
+        }
+
+        var sourceLoose = LooseCacheKey(normalizedSource);
+        if (string.IsNullOrEmpty(sourceLoose))
+        {
+            return false;
+        }
+
+        foreach (var entry in _translationCache)
+        {
+            if (LooseCacheKey(entry.Key) == sourceLoose && !LooksEquivalent(entry.Value, source))
+            {
+                target = entry.Value;
+                return true;
+            }
+        }
+
+        foreach (var entry in _translationCache)
+        {
+            if (LooksEquivalent(normalizedSource, entry.Key) && !LooksEquivalent(entry.Value, source))
+            {
+                target = entry.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CacheTranslationPair(string source, string target)
+    {
+        var sourceKey = NormalizeCacheKey(source);
+        var targetKey = NormalizeCacheKey(target);
+        if (string.IsNullOrEmpty(sourceKey) || string.IsNullOrEmpty(targetKey) || sourceKey == targetKey)
+        {
+            return;
+        }
+
+        UpsertTranslationCache(sourceKey, target);
+        UpsertTranslationCache(targetKey, source);
+    }
+
+    private void UpsertTranslationCache(string key, string value)
+    {
+        if (!_translationCache.ContainsKey(key))
+        {
+            _translationCacheOrder.Enqueue(key);
+        }
+
+        _translationCache[key] = value;
+
+        while (_translationCacheOrder.Count > MaxCacheEntries)
+        {
+            var oldest = _translationCacheOrder.Dequeue();
+            _translationCache.Remove(oldest);
+        }
+    }
+
+    private void RecordAppliedOutput(string output)
+    {
+        _lastAppliedOutputText = output;
+        _lastAppliedAtUtc = DateTime.UtcNow;
+    }
+
+    private static bool LooksEquivalent(string lhs, string rhs)
+    {
+        var left = NormalizeCacheKey(lhs);
+        var right = NormalizeCacheKey(rhs);
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+        {
+            return false;
+        }
+
+        if (string.Equals(left, right, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var leftLoose = LooseCacheKey(left);
+        var rightLoose = LooseCacheKey(right);
+        if (leftLoose.Length == 0 || rightLoose.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(leftLoose, rightLoose, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var minLen = Math.Min(leftLoose.Length, rightLoose.Length);
+        return minLen >= 4 && (leftLoose.Contains(rightLoose, StringComparison.Ordinal) || rightLoose.Contains(leftLoose, StringComparison.Ordinal));
+    }
+
+    private static string NormalizeCacheKey(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static string LooseCacheKey(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        var pendingSpace = false;
+
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                if (pendingSpace && builder.Length > 0)
+                {
+                    builder.Append(' ');
+                    pendingSpace = false;
+                }
+
+                builder.Append(char.ToLowerInvariant(ch));
+                continue;
+            }
+
+            if (char.IsWhiteSpace(ch))
+            {
+                pendingSpace = builder.Length > 0;
+            }
+        }
+
+        return builder.ToString();
     }
 }
