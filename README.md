@@ -3,6 +3,7 @@
 Language: **English** | [中文](README.zh-CN.md)
 
 Type Chinese, press `Space` 3 times within `0.5s`, and replace it with English instantly.
+Press triple-space again to toggle back to the previous language result.
 
 ## Demo
 
@@ -22,12 +23,24 @@ This app keeps your thinking flow: write in Chinese first, then trigger instant 
 ## Features
 
 - Triple-space trigger (`0.5s`, configurable on Windows)
+- Bidirectional round-trip toggle:
+  - Chinese -> English -> Chinese
+  - English -> Chinese -> English
 - Input replacement in common text fields
 - macOS + Windows download packages
 - iOS keyboard extension MVP available in repo
 - Translation providers:
   - macOS / iOS: Apple Translation framework
   - Windows: OpenAI or LibreTranslate
+
+## New: Reverse Toggle Translation
+
+You can now translate and toggle back in the same input box:
+
+- Type Chinese, triple-space -> English
+- Triple-space again -> back to Chinese
+- Type English, triple-space -> Chinese
+- Triple-space again -> back to English
 
 ## Downloads
 
