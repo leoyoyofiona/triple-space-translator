@@ -30,7 +30,13 @@ if (-not $SkipOfflineRuntime) {
     }
 
     Write-Host "Preparing offline runtime..." -ForegroundColor Cyan
-    powershell -ExecutionPolicy Bypass -File $offlinePrepareScript -OutDir $outOfflineRuntime
+    try {
+        # Invoke directly so any throw in prepare script stops this build with the real root-cause.
+        & $offlinePrepareScript -OutDir $outOfflineRuntime
+    }
+    catch {
+        throw "prepare-offline-runtime failed: $($_.Exception.Message)"
+    }
 }
 
 if (-not (Test-Path $projectPath)) {
