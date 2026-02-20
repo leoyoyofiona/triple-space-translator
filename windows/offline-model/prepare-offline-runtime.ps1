@@ -16,6 +16,7 @@ if ([string]::IsNullOrWhiteSpace($OutDir)) {
 $workDir = Join-Path $env:TEMP ("tst-offline-runtime-" + [Guid]::NewGuid().ToString("N"))
 $pythonDir = Join-Path $OutDir "python"
 $offlineHome = Join-Path $OutDir "home"
+$wheelhouseDir = Join-Path $OutDir "wheelhouse"
 $sitePackagesDir = Join-Path $pythonDir "Lib\\site-packages"
 $embedZip = Join-Path $workDir "python-embed.zip"
 $getPip = Join-Path $workDir "get-pip.py"
@@ -67,9 +68,13 @@ try {
     if (Test-Path $offlineHome) {
         Remove-Item -Recurse -Force $offlineHome
     }
+    if (Test-Path $wheelhouseDir) {
+        Remove-Item -Recurse -Force $wheelhouseDir
+    }
 
     New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
     New-Item -ItemType Directory -Force -Path $offlineHome | Out-Null
+    New-Item -ItemType Directory -Force -Path $wheelhouseDir | Out-Null
     New-Item -ItemType Directory -Force -Path $sitePackagesDir | Out-Null
 
     $pythonUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
@@ -117,9 +122,20 @@ try {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
     Invoke-Python @($getPip)
 
+    Write-Step "Downloading offline wheelhouse (for runtime self-heal)..."
+    Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6")
+
     Write-Step "Installing offline engine dependencies into bundled runtime..."
-    Invoke-Python @("-m", "pip", "install", "--no-warn-script-location", "--target", $sitePackagesDir, "argostranslate==1.9.6")
+    # Install from local wheelhouse so packaged runtime and self-heal use the same bits.
+    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $pythonDir, "argostranslate==1.9.6")
     Invoke-Python @("-c", "import argostranslate,sys;print('argostranslate=',argostranslate.__version__);print('site=',sys.path)")
+
+    if (-not (Test-Path (Join-Path $pythonDir "argostranslate"))) {
+        throw "argostranslate module folder missing after install: $(Join-Path $pythonDir 'argostranslate')"
+    }
+    if (-not (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
+        throw "argostranslate wheel missing in wheelhouse: $wheelhouseDir"
+    }
 
     if (-not $SkipModelInstall) {
         Write-Step "Installing zh<->en model packages..."
@@ -146,6 +162,15 @@ for source, target in pairs:
     }
 
     Copy-Item -Path (Join-Path $scriptDir "translate_once.py") -Destination (Join-Path $OutDir "translate_once.py") -Force
+
+    Write-Step "Running offline runtime smoke test..."
+    $smokeOutput = "hello" | & (Join-Path $pythonDir "python.exe") (Join-Path $OutDir "translate_once.py") --source en --target zh
+    if ($LASTEXITCODE -ne 0) {
+        throw "Offline runtime smoke test failed."
+    }
+    if ([string]::IsNullOrWhiteSpace($smokeOutput)) {
+        throw "Offline runtime smoke test returned empty output."
+    }
 
     Write-Step "Offline runtime ready: $OutDir"
     Get-ChildItem -Path $OutDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize

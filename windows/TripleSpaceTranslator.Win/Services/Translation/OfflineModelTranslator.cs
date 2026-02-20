@@ -11,6 +11,7 @@ public sealed class OfflineModelTranslator : ITranslator
         var scriptPath = ResolveScriptPath();
         var seedHome = ResolveSeedHomePath();
         var offlineHome = ResolveOfflineHomePath();
+        var userSitePackages = ResolveUserSitePackagesPath();
 
         if (!File.Exists(pythonExe))
         {
@@ -25,6 +26,7 @@ public sealed class OfflineModelTranslator : ITranslator
         var source = NormalizeLang(sourceLang);
         var target = NormalizeLang(targetLang);
         Directory.CreateDirectory(offlineHome);
+        Directory.CreateDirectory(userSitePackages);
 
         if (!IsSupportedPair(source, target))
         {
@@ -46,7 +48,10 @@ public sealed class OfflineModelTranslator : ITranslator
         startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
         startInfo.EnvironmentVariables["HOME"] = offlineHome;
         startInfo.EnvironmentVariables["USERPROFILE"] = offlineHome;
-        startInfo.EnvironmentVariables["PYTHONPATH"] = Path.Combine(AppContext.BaseDirectory, "offline-runtime", "python", "Lib", "site-packages");
+        var pythonRoot = Path.Combine(AppContext.BaseDirectory, "offline-runtime", "python");
+        var sitePackages = Path.Combine(pythonRoot, "Lib", "site-packages");
+        startInfo.EnvironmentVariables["PYTHONPATH"] = string.Join(";", new[] { pythonRoot, sitePackages, userSitePackages });
+        startInfo.EnvironmentVariables["TST_OFFLINE_USER_SITE"] = userSitePackages;
         if (Directory.Exists(seedHome))
         {
             startInfo.EnvironmentVariables["TST_OFFLINE_SEED_HOME"] = seedHome;
@@ -168,5 +173,17 @@ public sealed class OfflineModelTranslator : ITranslator
         }
 
         return Path.Combine(AppContext.BaseDirectory, "offline-runtime", "home");
+    }
+
+    private static string ResolveUserSitePackagesPath()
+    {
+        var envOverride = Environment.GetEnvironmentVariable("TST_OFFLINE_USER_SITE");
+        if (!string.IsNullOrWhiteSpace(envOverride))
+        {
+            return envOverride;
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, "TripleSpaceTranslator", "offline-site-packages");
     }
 }
