@@ -70,4 +70,8 @@ extension String {
 
         return removed == count ? result : self
     }
+
+    var translationCacheKey: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

@@ -12,6 +12,9 @@ final class AppModel: ObservableObject {
     private let keyMonitor = GlobalKeyMonitor()
     private let textController = FocusedElementTextController()
     private let translator = SystemTranslator()
+    private let maxReverseCacheEntries = 100
+    private var reverseTranslationCache: [String: String] = [:]
+    private var reverseTranslationCacheKeyOrder: [String] = []
 
     init() {
         keyMonitor.onTripleSpace = { [weak self] in
@@ -119,11 +122,34 @@ final class AppModel: ObservableObject {
                 lastStatus = "检测到中文，正在翻译为英文..."
                 targetLanguageLabel = "英文"
             case .enToZh:
+                if let cachedChinese = reverseTranslationCache[inputWithoutTrigger.translationCacheKey] {
+                    let replaced: Bool
+                    if usedCutFallback {
+                        replaced = textController.replaceCurrentInputViaPasteFallback(cachedChinese)
+                    } else {
+                        replaced = textController.replaceFocusedText(with: cachedChinese)
+                    }
+
+                    if replaced {
+                        lastStatus = "已还原为中文（来自最近翻译记录）"
+                    } else {
+                        if usedCutFallback {
+                            _ = textController.replaceCurrentInputViaPasteFallback(originalText)
+                        }
+                        lastStatus = "还原失败：当前输入框不支持替换"
+                    }
+                    return
+                }
+
                 lastStatus = "检测到英文，正在翻译为中文..."
                 targetLanguageLabel = "中文"
             }
 
             let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
+
+            if direction == .zhToEn {
+                cacheReverseTranslation(english: translated, chinese: inputWithoutTrigger)
+            }
 
             let replaced: Bool
             if usedCutFallback {
@@ -145,6 +171,21 @@ final class AppModel: ObservableObject {
                 _ = textController.replaceCurrentInputViaPasteFallback(originalText)
             }
             lastStatus = "翻译失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func cacheReverseTranslation(english: String, chinese: String) {
+        let key = english.translationCacheKey
+        guard !key.isEmpty else { return }
+
+        if reverseTranslationCache[key] == nil {
+            reverseTranslationCacheKeyOrder.append(key)
+        }
+        reverseTranslationCache[key] = chinese
+
+        while reverseTranslationCacheKeyOrder.count > maxReverseCacheEntries {
+            let removedKey = reverseTranslationCacheKeyOrder.removeFirst()
+            reverseTranslationCache.removeValue(forKey: removedKey)
         }
     }
 }
