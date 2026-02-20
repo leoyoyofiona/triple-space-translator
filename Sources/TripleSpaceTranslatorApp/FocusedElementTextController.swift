@@ -4,14 +4,27 @@ import Foundation
 
 final class FocusedElementTextController {
     func readFocusedText() -> String? {
-        guard let element = focusedElement() else { return nil }
-        if let axText = readTextViaAX(from: element) {
-            return axText
+        guard let element = focusedElement() else {
+            return readTextViaSelectAllCopyFallback()
         }
-        if let selectedAXText = readTextViaAXSelectedTextAfterSelectAll(from: element) {
+
+        // Prefer live selection/copy paths to avoid stale AX value in some editors.
+        if let selectedAXText = readTextViaAXSelectedTextAfterSelectAll(from: element),
+           !normalizeText(selectedAXText).isEmpty {
             return selectedAXText
         }
-        return readTextViaSelectAllCopyFallback()
+
+        if let copiedText = readTextViaSelectAllCopyFallback(),
+           !normalizeText(copiedText).isEmpty {
+            return copiedText
+        }
+
+        if let axText = readTextViaAX(from: element),
+           !normalizeText(axText).isEmpty {
+            return axText
+        }
+
+        return nil
     }
 
     @discardableResult
@@ -357,14 +370,17 @@ final class FocusedElementTextController {
 
     private func readCurrentTextForVerification() -> String? {
         if let element = focusedElement() {
-            if let axText = readTextViaAX(from: element), !axText.isEmpty {
-                return axText
-            }
             if let selected = readTextViaAXSelectedTextAfterSelectAll(from: element), !selected.isEmpty {
                 return selected
             }
+            if let copied = readTextViaSelectAllCopyFallback(), !copied.isEmpty {
+                return copied
+            }
+            if let axText = readTextViaAX(from: element), !axText.isEmpty {
+                return axText
+            }
         }
-        return readTextViaSelectAllCopyFallback()
+        return nil
     }
 
     private func normalizeText(_ value: String) -> String {
