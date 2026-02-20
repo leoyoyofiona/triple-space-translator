@@ -19,7 +19,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.center()
-        window.title = "中文三空格翻英"
+        window.title = "三空格中英互译"
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()

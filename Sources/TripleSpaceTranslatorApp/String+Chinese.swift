@@ -18,6 +18,46 @@ extension String {
         }
     }
 
+    var chineseCharacterCount: Int {
+        unicodeScalars.reduce(into: 0) { count, scalar in
+            switch scalar.value {
+            case 0x3400...0x4DBF,
+                 0x4E00...0x9FFF,
+                 0xF900...0xFAFF,
+                 0x20000...0x2A6DF,
+                 0x2A700...0x2B73F,
+                 0x2B740...0x2B81F,
+                 0x2B820...0x2CEAF:
+                count += 1
+            default:
+                break
+            }
+        }
+    }
+
+    var englishLetterCount: Int {
+        unicodeScalars.reduce(into: 0) { count, scalar in
+            guard scalar.isASCII else { return }
+            switch scalar.value {
+            case 65...90, 97...122:
+                count += 1
+            default:
+                break
+            }
+        }
+    }
+
+    var preferredTranslationDirection: TranslationDirection? {
+        let zhCount = chineseCharacterCount
+        let enCount = englishLetterCount
+
+        if zhCount == 0 && enCount == 0 {
+            return nil
+        }
+
+        return zhCount >= enCount ? .zhToEn : .enToZh
+    }
+
     func removingTrailingAsciiSpaces(_ count: Int) -> String {
         guard count > 0 else { return self }
         var result = self

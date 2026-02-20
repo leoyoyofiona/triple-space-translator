@@ -6,7 +6,7 @@ final class AppModel: ObservableObject {
     @Published var hasInputMonitoringPermission = false
     @Published var monitorEnabled = true
     @Published var isTranslating = false
-    @Published var lastStatus = "等待触发：在任意输入框里连按三次空格" 
+    @Published var lastStatus = "等待触发：在任意输入框里连按三次空格（中英互译）"
 
     private let permissionManager = PermissionManager()
     private let keyMonitor = GlobalKeyMonitor()
@@ -55,7 +55,7 @@ final class AppModel: ObservableObject {
 
         if canRun {
             if keyMonitor.start() {
-                lastStatus = "监听中：0.5 秒内三次空格会把当前中文输入翻译为英文"
+                lastStatus = "监听中：0.5 秒内三次空格会自动中英互译"
             } else {
                 lastStatus = "监听启动失败：请确认已授权 Input Monitoring，并重启应用"
             }
@@ -101,11 +101,11 @@ final class AppModel: ObservableObject {
             return
         }
 
-        guard inputWithoutTrigger.containsChinese else {
+        guard let direction = inputWithoutTrigger.preferredTranslationDirection else {
             if usedCutFallback {
                 _ = textController.replaceCurrentInputViaPasteFallback(originalText)
             }
-            lastStatus = "当前输入不含中文，已忽略"
+            lastStatus = "当前输入不含可识别的中英文内容，已忽略"
             return
         }
 
@@ -113,7 +113,17 @@ final class AppModel: ObservableObject {
         defer { isTranslating = false }
 
         do {
-            let translated = try await translator.translateToEnglish(inputWithoutTrigger)
+            let targetLanguageLabel: String
+            switch direction {
+            case .zhToEn:
+                lastStatus = "检测到中文，正在翻译为英文..."
+                targetLanguageLabel = "英文"
+            case .enToZh:
+                lastStatus = "检测到英文，正在翻译为中文..."
+                targetLanguageLabel = "中文"
+            }
+
+            let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
 
             let replaced: Bool
             if usedCutFallback {
@@ -123,7 +133,7 @@ final class AppModel: ObservableObject {
             }
 
             if replaced {
-                lastStatus = "翻译完成并已替换为英文"
+                lastStatus = "翻译完成并已替换为\(targetLanguageLabel)"
             } else {
                 if usedCutFallback {
                     _ = textController.replaceCurrentInputViaPasteFallback(originalText)

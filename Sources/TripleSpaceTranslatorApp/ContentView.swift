@@ -5,10 +5,10 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("中文三空格翻英文")
+            Text("三空格中英互译")
                 .font(.title2.weight(.semibold))
 
-            Text("在任何输入框里输入中文，0.5 秒内连按三次空格，自动翻译并替换当前输入框内容。")
+            Text("在任何输入框里输入中文或英文，0.5 秒内连按三次空格，自动互译并替换当前输入框内容。")
                 .foregroundStyle(.secondary)
 
             GroupBox("权限状态") {
