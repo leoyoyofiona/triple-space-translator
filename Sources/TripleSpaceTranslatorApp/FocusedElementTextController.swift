@@ -4,27 +4,14 @@ import Foundation
 
 final class FocusedElementTextController {
     func readFocusedText() -> String? {
-        guard let element = focusedElement() else {
-            return readTextViaSelectAllCopyFallback()
-        }
-
-        // Prefer live selection/copy paths to avoid stale AX value in some editors.
-        if let selectedAXText = readTextViaAXSelectedTextAfterSelectAll(from: element),
-           !normalizeText(selectedAXText).isEmpty {
-            return selectedAXText
-        }
-
-        if let copiedText = readTextViaSelectAllCopyFallback(),
-           !normalizeText(copiedText).isEmpty {
-            return copiedText
-        }
-
-        if let axText = readTextViaAX(from: element),
-           !normalizeText(axText).isEmpty {
+        guard let element = focusedElement() else { return nil }
+        if let axText = readTextViaAX(from: element) {
             return axText
         }
-
-        return nil
+        if let selectedAXText = readTextViaAXSelectedTextAfterSelectAll(from: element) {
+            return selectedAXText
+        }
+        return readTextViaSelectAllCopyFallback()
     }
 
     @discardableResult
@@ -370,17 +357,14 @@ final class FocusedElementTextController {
 
     private func readCurrentTextForVerification() -> String? {
         if let element = focusedElement() {
-            if let selected = readTextViaAXSelectedTextAfterSelectAll(from: element), !selected.isEmpty {
-                return selected
-            }
-            if let copied = readTextViaSelectAllCopyFallback(), !copied.isEmpty {
-                return copied
-            }
             if let axText = readTextViaAX(from: element), !axText.isEmpty {
                 return axText
             }
+            if let selected = readTextViaAXSelectedTextAfterSelectAll(from: element), !selected.isEmpty {
+                return selected
+            }
         }
-        return nil
+        return readTextViaSelectAllCopyFallback()
     }
 
     private func normalizeText(_ value: String) -> String {

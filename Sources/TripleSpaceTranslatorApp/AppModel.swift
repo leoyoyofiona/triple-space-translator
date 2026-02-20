@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     private var translationCache: [String: String] = [:]
     private var translationCacheKeyOrder: [String] = []
     private var lastTranslationPair: (left: String, right: String)?
+    private var lastAppliedOutputText: String?
 
     init() {
         keyMonitor.onTripleSpace = { [weak self] in
@@ -117,6 +118,7 @@ final class AppModel: ObservableObject {
             if replaced {
                 cacheTranslationPair(source: inputWithoutTrigger, target: pairTarget)
                 lastTranslationPair = (left: inputWithoutTrigger, right: pairTarget)
+                lastAppliedOutputText = pairTarget
                 lastStatus = "已切换回上一轮对应文本"
             } else {
                 if usedCutFallback {
@@ -138,6 +140,7 @@ final class AppModel: ObservableObject {
             if replaced {
                 cacheTranslationPair(source: inputWithoutTrigger, target: cachedText)
                 lastTranslationPair = (left: inputWithoutTrigger, right: cachedText)
+                lastAppliedOutputText = cachedText
                 lastStatus = "已从最近翻译记录切换回对应文本"
             } else {
                 if usedCutFallback {
@@ -173,6 +176,7 @@ final class AppModel: ObservableObject {
             let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
             cacheTranslationPair(source: inputWithoutTrigger, target: translated)
             lastTranslationPair = (left: inputWithoutTrigger, right: translated)
+            lastAppliedOutputText = translated
 
             let replaced: Bool
             if usedCutFallback {
@@ -218,11 +222,27 @@ final class AppModel: ObservableObject {
     private func pairToggleTarget(for currentInput: String) -> String? {
         guard !currentInput.isEmpty, let pair = lastTranslationPair else { return nil }
 
+        let leftNorm = pair.left.translationCacheKey
+        let rightNorm = pair.right.translationCacheKey
+        let currentNorm = currentInput.translationCacheKey
         let currentLoose = currentInput.translationLooseKey
-        if currentInput.translationCacheKey == pair.left.translationCacheKey || (!currentLoose.isEmpty && currentLoose == pair.left.translationLooseKey) {
+
+        // Prefer alternating from the last applied output to tolerate stale text reads from some editors.
+        if let lastApplied = lastAppliedOutputText?.translationCacheKey {
+            if lastApplied == leftNorm,
+               currentNorm == leftNorm || currentNorm == rightNorm || (!currentLoose.isEmpty && (currentLoose == pair.left.translationLooseKey || currentLoose == pair.right.translationLooseKey)) {
+                return pair.right
+            }
+            if lastApplied == rightNorm,
+               currentNorm == leftNorm || currentNorm == rightNorm || (!currentLoose.isEmpty && (currentLoose == pair.left.translationLooseKey || currentLoose == pair.right.translationLooseKey)) {
+                return pair.left
+            }
+        }
+
+        if currentNorm == leftNorm || (!currentLoose.isEmpty && currentLoose == pair.left.translationLooseKey) {
             return pair.right
         }
-        if currentInput.translationCacheKey == pair.right.translationCacheKey || (!currentLoose.isEmpty && currentLoose == pair.right.translationLooseKey) {
+        if currentNorm == rightNorm || (!currentLoose.isEmpty && currentLoose == pair.right.translationLooseKey) {
             return pair.left
         }
         return nil
