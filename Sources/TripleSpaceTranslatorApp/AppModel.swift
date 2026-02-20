@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -17,6 +18,8 @@ final class AppModel: ObservableObject {
     private var translationCacheKeyOrder: [String] = []
     private var lastTranslationPair: (left: String, right: String)?
     private var lastAppliedOutputText: String?
+    private var lastAppliedAt: Date?
+    private var lastAppliedBundleID: String?
 
     init() {
         keyMonitor.onTripleSpace = { [weak self] in
@@ -99,6 +102,14 @@ final class AppModel: ObservableObject {
         let inputWithoutTrigger = originalText.removingTrailingAsciiSpaces(3)
 
         guard !inputWithoutTrigger.isEmpty else {
+            if let forcedTarget = forcedRecentToggleTarget(for: inputWithoutTrigger, allowUnrelatedInput: true) {
+                let replaced = replaceCurrentInput(with: forcedTarget, usedCutFallback: usedCutFallback)
+                if replaced {
+                    recordAppliedOutput(forcedTarget)
+                    lastStatus = "已按最近结果反向切换"
+                    return
+                }
+            }
             if usedCutFallback {
                 _ = textController.replaceCurrentInputViaPasteFallback(originalText)
             }
@@ -107,18 +118,13 @@ final class AppModel: ObservableObject {
         }
 
         let normalizedInput = inputWithoutTrigger.translationCacheKey
-        if let pairTarget = pairToggleTarget(for: normalizedInput) {
-            let replaced: Bool
-            if usedCutFallback {
-                replaced = textController.replaceCurrentInputViaPasteFallback(pairTarget)
-            } else {
-                replaced = textController.replaceFocusedText(with: pairTarget)
-            }
+        if let pairTarget = pairToggleTarget(for: inputWithoutTrigger) {
+            let replaced = replaceCurrentInput(with: pairTarget, usedCutFallback: usedCutFallback)
 
             if replaced {
                 cacheTranslationPair(source: inputWithoutTrigger, target: pairTarget)
                 lastTranslationPair = (left: inputWithoutTrigger, right: pairTarget)
-                lastAppliedOutputText = pairTarget
+                recordAppliedOutput(pairTarget)
                 lastStatus = "已切换回上一轮对应文本"
             } else {
                 if usedCutFallback {
@@ -130,17 +136,12 @@ final class AppModel: ObservableObject {
         }
 
         if let cachedText = cachedTranslation(for: normalizedInput) {
-            let replaced: Bool
-            if usedCutFallback {
-                replaced = textController.replaceCurrentInputViaPasteFallback(cachedText)
-            } else {
-                replaced = textController.replaceFocusedText(with: cachedText)
-            }
+            let replaced = replaceCurrentInput(with: cachedText, usedCutFallback: usedCutFallback)
 
             if replaced {
                 cacheTranslationPair(source: inputWithoutTrigger, target: cachedText)
                 lastTranslationPair = (left: inputWithoutTrigger, right: cachedText)
-                lastAppliedOutputText = cachedText
+                recordAppliedOutput(cachedText)
                 lastStatus = "已从最近翻译记录切换回对应文本"
             } else {
                 if usedCutFallback {
@@ -149,6 +150,17 @@ final class AppModel: ObservableObject {
                 lastStatus = "切换失败：当前输入框不支持替换"
             }
             return
+        }
+
+        if let forcedTarget = forcedRecentToggleTarget(for: inputWithoutTrigger, allowUnrelatedInput: false) {
+            let replaced = replaceCurrentInput(with: forcedTarget, usedCutFallback: usedCutFallback)
+            if replaced {
+                cacheTranslationPair(source: inputWithoutTrigger, target: forcedTarget)
+                lastTranslationPair = (left: inputWithoutTrigger, right: forcedTarget)
+                recordAppliedOutput(forcedTarget)
+                lastStatus = "已按最近结果反向切换"
+                return
+            }
         }
 
         guard let direction = inputWithoutTrigger.preferredTranslationDirection else {
@@ -176,14 +188,9 @@ final class AppModel: ObservableObject {
             let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
             cacheTranslationPair(source: inputWithoutTrigger, target: translated)
             lastTranslationPair = (left: inputWithoutTrigger, right: translated)
-            lastAppliedOutputText = translated
+            recordAppliedOutput(translated)
 
-            let replaced: Bool
-            if usedCutFallback {
-                replaced = textController.replaceCurrentInputViaPasteFallback(translated)
-            } else {
-                replaced = textController.replaceFocusedText(with: translated)
-            }
+            let replaced = replaceCurrentInput(with: translated, usedCutFallback: usedCutFallback)
 
             if replaced {
                 lastStatus = "翻译完成并已替换为\(targetLanguageLabel)"
@@ -227,20 +234,31 @@ final class AppModel: ObservableObject {
 
     private func pairToggleTarget(for currentInput: String) -> String? {
         guard !currentInput.isEmpty, let pair = lastTranslationPair else { return nil }
+        guard let lastApplied = lastAppliedOutputText else { return nil }
 
         let leftNorm = pair.left.translationCacheKey
         let rightNorm = pair.right.translationCacheKey
+        guard !leftNorm.isEmpty, !rightNorm.isEmpty else { return nil }
 
-        // Prefer alternating from the last applied output to tolerate stale text reads from some editors.
-        if let lastApplied = lastAppliedOutputText?.translationCacheKey {
-            if looksEquivalent(lastApplied, leftNorm),
-               looksEquivalent(currentInput, leftNorm) || looksEquivalent(currentInput, rightNorm) {
-                return pair.right
-            }
-            if looksEquivalent(lastApplied, rightNorm),
-               looksEquivalent(currentInput, leftNorm) || looksEquivalent(currentInput, rightNorm) {
-                return pair.left
-            }
+        let currentMatchesEither = looksEquivalent(currentInput, leftNorm) || looksEquivalent(currentInput, rightNorm)
+        guard currentMatchesEither else { return nil }
+
+        // Keep toggle context bound to recent operation and current app to avoid unrelated text hijacking.
+        if let at = lastAppliedAt, Date().timeIntervalSince(at) > 90 {
+            return nil
+        }
+        if let bundle = lastAppliedBundleID?.lowercased(),
+           let currentBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased(),
+           bundle != currentBundle {
+            return nil
+        }
+
+        // Core rule: alternate from what we last wrote, not from what we just read.
+        if looksEquivalent(lastApplied, leftNorm) {
+            return pair.right
+        }
+        if looksEquivalent(lastApplied, rightNorm) {
+            return pair.left
         }
 
         if looksEquivalent(currentInput, leftNorm) {
@@ -249,6 +267,45 @@ final class AppModel: ObservableObject {
         if looksEquivalent(currentInput, rightNorm) {
             return pair.left
         }
+        return nil
+    }
+
+    private func forcedRecentToggleTarget(for currentInput: String, allowUnrelatedInput: Bool) -> String? {
+        guard let pair = lastTranslationPair, let lastApplied = lastAppliedOutputText else { return nil }
+        guard let at = lastAppliedAt, Date().timeIntervalSince(at) <= 12 else { return nil }
+        if let bundle = lastAppliedBundleID?.lowercased(),
+           let currentBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased(),
+           bundle != currentBundle {
+            return nil
+        }
+
+        let left = pair.left.translationCacheKey
+        let right = pair.right.translationCacheKey
+        guard !left.isEmpty, !right.isEmpty else { return nil }
+
+        let opposite: String
+        if looksEquivalent(lastApplied, left) {
+            opposite = pair.right
+        } else if looksEquivalent(lastApplied, right) {
+            opposite = pair.left
+        } else {
+            return nil
+        }
+
+        if allowUnrelatedInput {
+            return opposite
+        }
+
+        let currentMatchesEither = looksEquivalent(currentInput, left) || looksEquivalent(currentInput, right)
+        if currentMatchesEither {
+            return opposite
+        }
+
+        // If user triggers triple-space again almost immediately, prefer toggling even if read text drifts.
+        if Date().timeIntervalSince(at) <= 2.0 {
+            return opposite
+        }
+
         return nil
     }
 
@@ -269,6 +326,19 @@ final class AppModel: ObservableObject {
         }
 
         return false
+    }
+
+    private func recordAppliedOutput(_ output: String) {
+        lastAppliedOutputText = output
+        lastAppliedAt = Date()
+        lastAppliedBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
+
+    private func replaceCurrentInput(with text: String, usedCutFallback: Bool) -> Bool {
+        if usedCutFallback {
+            return textController.replaceCurrentInputViaPasteFallback(text)
+        }
+        return textController.replaceFocusedText(with: text)
     }
 
     private func cacheTranslationPair(source: String, target: String) {
