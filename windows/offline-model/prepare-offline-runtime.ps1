@@ -102,7 +102,14 @@ try {
         $updated += 'Lib\\site-packages'
     }
 
-    Set-Content -Path $pthFile.FullName -Value $updated -Encoding UTF8
+    # Important: _pth must be written without BOM, otherwise python311.zip path may become "\ufeffpython311.zip"
+    # and embedded Python fails with "No module named 'encodings'".
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText(
+        $pthFile.FullName,
+        (($updated -join [Environment]::NewLine) + [Environment]::NewLine),
+        $utf8NoBom
+    )
 
     Write-Step "Installing pip..."
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
