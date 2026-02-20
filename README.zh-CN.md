@@ -2,8 +2,25 @@
 
 语言: [English](README.md) | **中文**
 
-先输入中文，在 `0.5 秒` 内连按 `3 次空格`，自动替换成英文。
-再次连按三空格，可以回切到上一轮语言结果。
+在任意输入框输入中文或英文后，在 `0.5 秒` 内连按 `3 次空格`，即可原位翻译并替换。
+再次连按三空格，可回切到上一轮语言。
+
+## 产品介绍
+
+Triple Space Translator 是一个“不中断思路”的双语输入助手。
+适合聊天框、搜索框、文档编辑等场景：
+
+- 先按自己的语言快速输入
+- 三空格即时翻译并替换
+- 不用复制/粘贴，不打断表达节奏
+
+当前重点能力：
+
+- macOS：使用系统 Translation.framework
+- Windows：默认内置离线模型（开箱即用，无需 API key，无需联网）
+- 双向回切：
+  - 中文 -> 英文 -> 中文
+  - 英文 -> 中文 -> 英文
 
 ## 效果展示
 
@@ -34,24 +51,11 @@
   - Windows 首次安装默认：内置离线模型（无需网络、无需 API key）
   - Windows：OpenAI 或 LibreTranslate（支持 Docker 本地一键模式）
 
-## 新增：回切翻译
-
-现在支持在同一输入框内连续来回切换：
-
-- 输入中文，三空格 -> 英文
-- 再三空格 -> 回到中文
-- 输入英文，三空格 -> 中文
-- 再三空格 -> 回到英文
-
 ## 下载地址
 
 - Releases 总入口：
   - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- macOS（最新已发布包，当前 `v1.0.5`）：
-  - [DMG](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.dmg)
-  - [ZIP](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.zip)
-- Windows（当前稳定安装包 `v1.0.2`）：
-  - [EXE](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.2/TripleSpaceTranslator-Setup-1.0.2.exe)
+- 最新安装包（`DMG/ZIP/EXE`）请直接在 Releases 页面下载。
 
 ## 各平台说明
 

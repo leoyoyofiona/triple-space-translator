@@ -2,8 +2,25 @@
 
 Language: **English** | [中文](README.zh-CN.md)
 
-Type Chinese, press `Space` 3 times within `0.5s`, and replace it with English instantly.
-Press triple-space again to toggle back to the previous language result.
+Type in Chinese or English, then press `Space` 3 times within `0.5s` to translate and replace in place.
+Press triple-space again to toggle back to the previous language.
+
+## Product Intro
+
+Triple Space Translator is a global input helper for fast bilingual writing.
+It keeps your thinking flow in chats, search boxes, and editors:
+
+- write first in your natural language
+- trigger translation with triple-space
+- continue typing without copy/paste context switching
+
+Current highlight:
+
+- macOS: system translation framework
+- Windows: built-in offline model by default (out-of-box, no API key, no network)
+- Bidirectional round-trip toggle:
+  - Chinese -> English -> Chinese
+  - English -> Chinese -> English
 
 ## Demo
 
@@ -34,24 +51,11 @@ This app keeps your thinking flow: write in Chinese first, then trigger instant 
   - Windows default first-run: built-in offline model (no network, no API key)
   - Windows: OpenAI or LibreTranslate (supports one-click local Docker mode)
 
-## New: Reverse Toggle Translation
-
-You can now translate and toggle back in the same input box:
-
-- Type Chinese, triple-space -> English
-- Triple-space again -> back to Chinese
-- Type English, triple-space -> Chinese
-- Triple-space again -> back to English
-
 ## Downloads
 
 - Releases page:
   - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- macOS (latest published package, current `v1.0.5`):
-  - [DMG](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.dmg)
-  - [ZIP](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.5/TripleSpaceTranslator-macOS26-universal-1.0.5.zip)
-- Windows (latest stable installer, current `v1.0.2`):
-  - [EXE](https://github.com/leoyoyofiona/triple-space-translator/releases/download/v1.0.2/TripleSpaceTranslator-Setup-1.0.2.exe)
+- Download latest assets from the release page (`DMG/ZIP/EXE`).
 
 ## Platform Guides
 
