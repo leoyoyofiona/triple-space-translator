@@ -12,9 +12,9 @@ final class AppModel: ObservableObject {
     private let keyMonitor = GlobalKeyMonitor()
     private let textController = FocusedElementTextController()
     private let translator = SystemTranslator()
-    private let maxReverseCacheEntries = 100
-    private var reverseTranslationCache: [String: String] = [:]
-    private var reverseTranslationCacheKeyOrder: [String] = []
+    private let maxTranslationCacheEntries = 200
+    private var translationCache: [String: String] = [:]
+    private var translationCacheKeyOrder: [String] = []
 
     init() {
         keyMonitor.onTripleSpace = { [weak self] in
@@ -104,6 +104,26 @@ final class AppModel: ObservableObject {
             return
         }
 
+        let normalizedInput = inputWithoutTrigger.translationCacheKey
+        if let cachedText = cachedTranslation(for: normalizedInput) {
+            let replaced: Bool
+            if usedCutFallback {
+                replaced = textController.replaceCurrentInputViaPasteFallback(cachedText)
+            } else {
+                replaced = textController.replaceFocusedText(with: cachedText)
+            }
+
+            if replaced {
+                lastStatus = "已从最近翻译记录切换回对应文本"
+            } else {
+                if usedCutFallback {
+                    _ = textController.replaceCurrentInputViaPasteFallback(originalText)
+                }
+                lastStatus = "切换失败：当前输入框不支持替换"
+            }
+            return
+        }
+
         guard let direction = inputWithoutTrigger.preferredTranslationDirection else {
             if usedCutFallback {
                 _ = textController.replaceCurrentInputViaPasteFallback(originalText)
@@ -122,34 +142,12 @@ final class AppModel: ObservableObject {
                 lastStatus = "检测到中文，正在翻译为英文..."
                 targetLanguageLabel = "英文"
             case .enToZh:
-                if let cachedChinese = reverseTranslationCache[inputWithoutTrigger.translationCacheKey] {
-                    let replaced: Bool
-                    if usedCutFallback {
-                        replaced = textController.replaceCurrentInputViaPasteFallback(cachedChinese)
-                    } else {
-                        replaced = textController.replaceFocusedText(with: cachedChinese)
-                    }
-
-                    if replaced {
-                        lastStatus = "已还原为中文（来自最近翻译记录）"
-                    } else {
-                        if usedCutFallback {
-                            _ = textController.replaceCurrentInputViaPasteFallback(originalText)
-                        }
-                        lastStatus = "还原失败：当前输入框不支持替换"
-                    }
-                    return
-                }
-
                 lastStatus = "检测到英文，正在翻译为中文..."
                 targetLanguageLabel = "中文"
             }
 
             let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
-
-            if direction == .zhToEn {
-                cacheReverseTranslation(english: translated, chinese: inputWithoutTrigger)
-            }
+            cacheTranslationPair(source: inputWithoutTrigger, target: translated)
 
             let replaced: Bool
             if usedCutFallback {
@@ -174,18 +172,33 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func cacheReverseTranslation(english: String, chinese: String) {
-        let key = english.translationCacheKey
-        guard !key.isEmpty else { return }
+    private func cachedTranslation(for normalizedSource: String) -> String? {
+        guard !normalizedSource.isEmpty else { return nil }
+        guard let value = translationCache[normalizedSource] else { return nil }
+        return value.translationCacheKey == normalizedSource ? nil : value
+    }
 
-        if reverseTranslationCache[key] == nil {
-            reverseTranslationCacheKeyOrder.append(key)
+    private func cacheTranslationPair(source: String, target: String) {
+        let sourceKey = source.translationCacheKey
+        let targetKey = target.translationCacheKey
+
+        guard !sourceKey.isEmpty, !targetKey.isEmpty, sourceKey != targetKey else {
+            return
         }
-        reverseTranslationCache[key] = chinese
 
-        while reverseTranslationCacheKeyOrder.count > maxReverseCacheEntries {
-            let removedKey = reverseTranslationCacheKeyOrder.removeFirst()
-            reverseTranslationCache.removeValue(forKey: removedKey)
+        upsertTranslationCache(key: sourceKey, value: target)
+        upsertTranslationCache(key: targetKey, value: source)
+    }
+
+    private func upsertTranslationCache(key: String, value: String) {
+        if translationCache[key] == nil {
+            translationCacheKeyOrder.append(key)
+        }
+        translationCache[key] = value
+
+        while translationCacheKeyOrder.count > maxTranslationCacheEntries {
+            let removedKey = translationCacheKeyOrder.removeFirst()
+            translationCache.removeValue(forKey: removedKey)
         }
     }
 }
