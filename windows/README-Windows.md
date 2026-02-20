@@ -31,6 +31,7 @@ Default behavior (out-of-box):
 - No API key is required for first use.
 - No network is required in offline mode.
 - Installer size is larger because zh<->en model runtime is bundled.
+- First translation may take a few extra seconds to initialize local runtime data in `%LOCALAPPDATA%\\TripleSpaceTranslator\\offline-home`.
 
 ## One-click local LibreTranslate (faster, no online API latency)
 

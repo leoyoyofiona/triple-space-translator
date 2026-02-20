@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import os
+import pathlib
+import shutil
 import sys
 
 
@@ -21,6 +24,29 @@ def fail(msg: str, code: int = 2) -> None:
     sys.exit(code)
 
 
+def bootstrap_seed_home() -> None:
+    seed_home = os.environ.get("TST_OFFLINE_SEED_HOME", "").strip()
+    if not seed_home:
+        return
+
+    seed_path = pathlib.Path(seed_home)
+    if not seed_path.exists():
+        return
+
+    user_home = pathlib.Path(os.path.expanduser("~"))
+    target_packages = user_home / ".local" / "share" / "argos-translate" / "packages"
+    need_copy = not target_packages.exists() or not any(target_packages.iterdir())
+    if not need_copy:
+        return
+
+    seed_local = seed_path / ".local"
+    seed_config = seed_path / ".config"
+    if seed_local.exists():
+        shutil.copytree(seed_local, user_home / ".local", dirs_exist_ok=True)
+    if seed_config.exists():
+        shutil.copytree(seed_config, user_home / ".config", dirs_exist_ok=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Offline zh<->en translator")
     parser.add_argument("--source", required=True)
@@ -36,6 +62,11 @@ def main() -> int:
     text = sys.stdin.read()
     if not text:
         fail("Empty input")
+
+    try:
+        bootstrap_seed_home()
+    except Exception as exc:
+        fail(f"offline bootstrap error: {exc}")
 
     try:
         import argostranslate.translate

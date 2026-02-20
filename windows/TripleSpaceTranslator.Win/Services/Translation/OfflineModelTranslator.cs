@@ -9,6 +9,8 @@ public sealed class OfflineModelTranslator : ITranslator
     {
         var pythonExe = ResolvePythonExecutablePath();
         var scriptPath = ResolveScriptPath();
+        var seedHome = ResolveSeedHomePath();
+        var offlineHome = ResolveOfflineHomePath();
 
         if (!File.Exists(pythonExe))
         {
@@ -22,6 +24,7 @@ public sealed class OfflineModelTranslator : ITranslator
 
         var source = NormalizeLang(sourceLang);
         var target = NormalizeLang(targetLang);
+        Directory.CreateDirectory(offlineHome);
 
         if (!IsSupportedPair(source, target))
         {
@@ -41,9 +44,12 @@ public sealed class OfflineModelTranslator : ITranslator
             StandardErrorEncoding = Encoding.UTF8
         };
         startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
-        var offlineHome = ResolveOfflineHomePath();
         startInfo.EnvironmentVariables["HOME"] = offlineHome;
         startInfo.EnvironmentVariables["USERPROFILE"] = offlineHome;
+        if (Directory.Exists(seedHome))
+        {
+            startInfo.EnvironmentVariables["TST_OFFLINE_SEED_HOME"] = seedHome;
+        }
 
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start())
@@ -143,6 +149,18 @@ public sealed class OfflineModelTranslator : ITranslator
     private static string ResolveOfflineHomePath()
     {
         var envOverride = Environment.GetEnvironmentVariable("TST_OFFLINE_HOME");
+        if (!string.IsNullOrWhiteSpace(envOverride))
+        {
+            return envOverride;
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, "TripleSpaceTranslator", "offline-home");
+    }
+
+    private static string ResolveSeedHomePath()
+    {
+        var envOverride = Environment.GetEnvironmentVariable("TST_OFFLINE_SEED_HOME");
         if (!string.IsNullOrWhiteSpace(envOverride))
         {
             return envOverride;
