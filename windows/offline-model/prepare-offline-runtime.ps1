@@ -16,6 +16,7 @@ if ([string]::IsNullOrWhiteSpace($OutDir)) {
 $workDir = Join-Path $env:TEMP ("tst-offline-runtime-" + [Guid]::NewGuid().ToString("N"))
 $pythonDir = Join-Path $OutDir "python"
 $offlineHome = Join-Path $OutDir "home"
+$sitePackagesDir = Join-Path $pythonDir "Lib\\site-packages"
 $embedZip = Join-Path $workDir "python-embed.zip"
 $getPip = Join-Path $workDir "get-pip.py"
 
@@ -69,6 +70,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
     New-Item -ItemType Directory -Force -Path $offlineHome | Out-Null
+    New-Item -ItemType Directory -Force -Path $sitePackagesDir | Out-Null
 
     $pythonUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
     Write-Step "Downloading Python embeddable runtime: $pythonUrl"
@@ -115,9 +117,9 @@ try {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
     Invoke-Python @($getPip)
 
-    Write-Step "Installing offline engine dependencies..."
-    Invoke-Python @("-m", "pip", "install", "--no-warn-script-location", "--upgrade", "pip", "setuptools", "wheel")
-    Invoke-Python @("-m", "pip", "install", "--no-warn-script-location", "argostranslate==1.9.6")
+    Write-Step "Installing offline engine dependencies into bundled runtime..."
+    Invoke-Python @("-m", "pip", "install", "--no-warn-script-location", "--target", $sitePackagesDir, "argostranslate==1.9.6")
+    Invoke-Python @("-c", "import argostranslate,sys;print('argostranslate=',argostranslate.__version__);print('site=',sys.path)")
 
     if (-not $SkipModelInstall) {
         Write-Step "Installing zh<->en model packages..."

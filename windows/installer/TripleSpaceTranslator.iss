@@ -30,7 +30,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\dist\win-x86\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: not Is64BitInstallMode
-Source: "..\dist\win-x86\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: Is64BitInstallMode
+Source: "..\dist\win-x64\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: Is64BitInstallMode and not IsArm64
+Source: "..\dist\win-arm64\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: IsArm64
 Source: "..\dist\offline-runtime\*"; DestDir: "{app}\offline-runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\local-libretranslate\*"; DestDir: "{app}\local-libretranslate"; Flags: ignoreversion recursesubdirs createallsubdirs
 

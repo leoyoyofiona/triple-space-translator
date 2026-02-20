@@ -80,7 +80,7 @@ public sealed class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -113,11 +113,13 @@ public sealed class MainForm : Form
 
         _toggleButton.Text = "Pause Hook";
         _toggleButton.Dock = DockStyle.Fill;
+        _toggleButton.MinimumSize = new Size(0, 38);
         _toggleButton.Click += (_, _) => ToggleRunningState();
         root.Controls.Add(_toggleButton, 0, 5);
 
         _saveButton.Text = "Save Settings";
         _saveButton.Dock = DockStyle.Fill;
+        _saveButton.MinimumSize = new Size(0, 38);
         _saveButton.Click += (_, _) =>
         {
             CollectSettingsFromUi();
