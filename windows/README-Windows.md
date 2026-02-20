@@ -22,7 +22,31 @@ This is the Windows stable edition of your app.
 The app supports two providers:
 
 - `OpenAI` (recommended for quality)
-- `LibreTranslate` (works with self-hosted endpoint)
+- `LibreTranslate` (works with local/self-hosted endpoint)
+
+## One-click local LibreTranslate (faster, no online API latency)
+
+Use local translation service on the same Windows machine:
+
+1. Install and launch Docker Desktop.
+2. Run one-click setup script:
+   - `windows\\local-libretranslate\\one-click-local-libretranslate.bat`
+3. The script will:
+   - start local container `triple-space-libretranslate`
+   - wait for `http://127.0.0.1:5000/languages`
+   - auto-write app settings to:
+     - provider: `LibreTranslate`
+     - base URL: `http://127.0.0.1:5000/translate`
+4. Restart app (or click `Save Settings` once).
+
+Stop local service:
+
+- `windows\\local-libretranslate\\stop-local-libretranslate.bat`
+
+If installed via `.exe`, the Start Menu includes:
+
+- `Enable Local LibreTranslate (One Click)`
+- `Stop Local LibreTranslate`
 
 Configure provider/API key/base URL in app UI and click `Save Settings`.
 

@@ -31,7 +31,7 @@ This app keeps your thinking flow: write in Chinese first, then trigger instant 
 - iOS keyboard extension MVP available in repo
 - Translation providers:
   - macOS / iOS: Apple Translation framework
-  - Windows: OpenAI or LibreTranslate
+  - Windows: OpenAI or LibreTranslate (supports one-click local Docker mode)
 
 ## New: Reverse Toggle Translation
 
