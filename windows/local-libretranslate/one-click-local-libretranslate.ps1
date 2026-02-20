@@ -108,6 +108,7 @@ function Update-AppSettings {
     Set-Or-AddProperty $settings "TargetLanguage" "en"
 
     Set-Or-AddProperty $settings "Provider" "LibreTranslate"
+    Set-Or-AddProperty $settings "HasUserProviderPreference" $true
     Set-Or-AddProperty $settings "LibreTranslateUrl" "http://127.0.0.1:$Port/translate"
     Set-Or-AddProperty $settings "LibreTranslateApiKey" ""
 

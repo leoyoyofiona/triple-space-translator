@@ -58,6 +58,16 @@ public sealed class SettingsService
     {
         var changed = false;
 
+        if (!settings.HasUserProviderPreference)
+        {
+            if (!string.Equals(settings.Provider, "OfflineModel", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(settings.Provider, "Offline", StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Provider = "OfflineModel";
+                changed = true;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(settings.Provider))
         {
             settings.Provider = "OfflineModel";

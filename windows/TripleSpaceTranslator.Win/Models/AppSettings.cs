@@ -6,6 +6,7 @@ public sealed class AppSettings
     public int TriggerWindowMs { get; set; } = 500;
     public string SourceLanguage { get; set; } = "zh-CN";
     public string TargetLanguage { get; set; } = "en";
+    public bool HasUserProviderPreference { get; set; } = false;
 
     // Translation provider: OfflineModel, OpenAI, LibreTranslate
     // Default to OfflineModel for out-of-box offline usage.

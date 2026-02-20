@@ -41,8 +41,10 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "Triple Space Translator (Windows Stable)";
-        Width = 740;
-        Height = 480;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Width = 980;
+        Height = 700;
+        MinimumSize = new Size(900, 620);
         StartPosition = FormStartPosition.CenterScreen;
 
         InitializeUi();
@@ -68,11 +70,19 @@ public sealed class MainForm : Form
             ColumnCount = 2,
             RowCount = 8,
             Padding = new Padding(12),
-            AutoSize = true
+            AutoSize = false
         };
 
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         root.Controls.Add(MakeLabel("Trigger window (ms):"), 0, 0);
         _windowMsNumeric.Minimum = 250;
@@ -120,6 +130,7 @@ public sealed class MainForm : Form
         _statusLabel.Dock = DockStyle.Fill;
         _statusLabel.AutoSize = false;
         _statusLabel.Height = 120;
+        _statusLabel.MinimumSize = new Size(0, 150);
         _statusLabel.BorderStyle = BorderStyle.FixedSingle;
         _statusLabel.Padding = new Padding(8);
         root.Controls.Add(_statusLabel, 1, 6);
@@ -200,6 +211,7 @@ public sealed class MainForm : Form
 
         _settings.TriggerWindowMs = (int)_windowMsNumeric.Value;
         _settings.Provider = provider;
+        _settings.HasUserProviderPreference = true;
 
         if (provider.Equals("LibreTranslate", StringComparison.OrdinalIgnoreCase))
         {
