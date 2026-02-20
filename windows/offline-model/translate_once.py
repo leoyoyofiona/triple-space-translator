@@ -24,6 +24,22 @@ def fail(msg: str, code: int = 2) -> None:
     sys.exit(code)
 
 
+def bootstrap_bundled_site_packages() -> None:
+    runtime_root = pathlib.Path(__file__).resolve().parent
+    python_root = runtime_root / "python"
+    candidates = [
+        python_root / "Lib" / "site-packages",
+        python_root,
+        python_root / "python311.zip",
+    ]
+
+    for path in candidates:
+        if path.exists():
+            value = str(path)
+            if value not in sys.path:
+                sys.path.insert(0, value)
+
+
 def bootstrap_seed_home() -> None:
     seed_home = os.environ.get("TST_OFFLINE_SEED_HOME", "").strip()
     if not seed_home:
@@ -64,6 +80,11 @@ def main() -> int:
         fail("Empty input")
 
     try:
+        bootstrap_bundled_site_packages()
+    except Exception as exc:
+        fail(f"offline site-packages bootstrap error: {exc}")
+
+    try:
         bootstrap_seed_home()
     except Exception as exc:
         fail(f"offline bootstrap error: {exc}")
@@ -71,7 +92,7 @@ def main() -> int:
     try:
         import argostranslate.translate
     except Exception as exc:  # pragma: no cover
-        fail(f"argostranslate import failed: {exc}")
+        fail(f"argostranslate import failed: {exc}; sys.path={sys.path}")
 
     try:
         installed = argostranslate.translate.get_installed_languages()

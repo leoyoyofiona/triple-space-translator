@@ -46,6 +46,7 @@ public sealed class OfflineModelTranslator : ITranslator
         startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
         startInfo.EnvironmentVariables["HOME"] = offlineHome;
         startInfo.EnvironmentVariables["USERPROFILE"] = offlineHome;
+        startInfo.EnvironmentVariables["PYTHONPATH"] = Path.Combine(AppContext.BaseDirectory, "offline-runtime", "python", "Lib", "site-packages");
         if (Directory.Exists(seedHome))
         {
             startInfo.EnvironmentVariables["TST_OFFLINE_SEED_HOME"] = seedHome;
