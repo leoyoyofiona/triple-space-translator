@@ -74,4 +74,18 @@ extension String {
     var translationCacheKey: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    var translationLooseKey: String {
+        let trimmed = translationCacheKey
+        guard !trimmed.isEmpty else { return "" }
+
+        let filteredScalars = trimmed.unicodeScalars.filter { scalar in
+            CharacterSet.alphanumerics.contains(scalar) || CharacterSet.whitespacesAndNewlines.contains(scalar)
+        }
+        let normalized = String(String.UnicodeScalarView(filteredScalars))
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return normalized
+    }
 }

@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     private let maxTranslationCacheEntries = 200
     private var translationCache: [String: String] = [:]
     private var translationCacheKeyOrder: [String] = []
+    private var lastTranslationPair: (left: String, right: String)?
 
     init() {
         keyMonitor.onTripleSpace = { [weak self] in
@@ -105,6 +106,25 @@ final class AppModel: ObservableObject {
         }
 
         let normalizedInput = inputWithoutTrigger.translationCacheKey
+        if let pairTarget = pairToggleTarget(for: normalizedInput) {
+            let replaced: Bool
+            if usedCutFallback {
+                replaced = textController.replaceCurrentInputViaPasteFallback(pairTarget)
+            } else {
+                replaced = textController.replaceFocusedText(with: pairTarget)
+            }
+
+            if replaced {
+                lastStatus = "已切换回上一轮对应文本"
+            } else {
+                if usedCutFallback {
+                    _ = textController.replaceCurrentInputViaPasteFallback(originalText)
+                }
+                lastStatus = "切换失败：当前输入框不支持替换"
+            }
+            return
+        }
+
         if let cachedText = cachedTranslation(for: normalizedInput) {
             let replaced: Bool
             if usedCutFallback {
@@ -148,6 +168,7 @@ final class AppModel: ObservableObject {
 
             let translated = try await translator.translate(inputWithoutTrigger, direction: direction)
             cacheTranslationPair(source: inputWithoutTrigger, target: translated)
+            lastTranslationPair = (left: inputWithoutTrigger, right: translated)
 
             let replaced: Bool
             if usedCutFallback {
@@ -174,8 +195,33 @@ final class AppModel: ObservableObject {
 
     private func cachedTranslation(for normalizedSource: String) -> String? {
         guard !normalizedSource.isEmpty else { return nil }
-        guard let value = translationCache[normalizedSource] else { return nil }
-        return value.translationCacheKey == normalizedSource ? nil : value
+        if let direct = translationCache[normalizedSource], direct.translationCacheKey != normalizedSource {
+            return direct
+        }
+
+        let looseSource = normalizedSource.translationLooseKey
+        guard !looseSource.isEmpty else { return nil }
+
+        if let fuzzy = translationCache.first(where: { key, _ in
+            key.translationLooseKey == looseSource
+        })?.value, fuzzy.translationLooseKey != looseSource {
+            return fuzzy
+        }
+
+        return nil
+    }
+
+    private func pairToggleTarget(for currentInput: String) -> String? {
+        guard !currentInput.isEmpty, let pair = lastTranslationPair else { return nil }
+
+        let currentLoose = currentInput.translationLooseKey
+        if currentInput.translationCacheKey == pair.left.translationCacheKey || (!currentLoose.isEmpty && currentLoose == pair.left.translationLooseKey) {
+            return pair.right
+        }
+        if currentInput.translationCacheKey == pair.right.translationCacheKey || (!currentLoose.isEmpty && currentLoose == pair.right.translationLooseKey) {
+            return pair.left
+        }
+        return nil
     }
 
     private func cacheTranslationPair(source: String, target: String) {
