@@ -81,8 +81,11 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-# Ad-hoc sign to keep bundle metadata consistent for distribution.
-codesign --force --deep --sign - "$APP_DIR"
+# Ad-hoc sign with a stable designated requirement bound to bundle id.
+# This avoids TCC permission entries being tied to a changing cdhash on each build.
+codesign --force --deep --sign - \
+  -r "designated => identifier \"$BUNDLE_ID\"" \
+  "$APP_DIR"
 
 ZIP_NAME="$DIST_DIR/TripleSpaceTranslator-macOS26-universal-$APP_VERSION.zip"
 DMG_NAME="$DIST_DIR/TripleSpaceTranslator-macOS26-universal-$APP_VERSION.dmg"
