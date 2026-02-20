@@ -126,12 +126,15 @@ try {
     Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6")
 
     Write-Step "Installing offline engine dependencies into bundled runtime..."
-    # Install from local wheelhouse so packaged runtime and self-heal use the same bits.
-    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $pythonDir, "argostranslate==1.9.6")
+    # Embedded Python behaves most consistently when dependencies are under Lib\site-packages.
+    # Runtime still includes python root in PYTHONPATH for compatibility.
+    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "argostranslate==1.9.6")
     Invoke-Python @("-c", "import argostranslate,sys;print('argostranslate=',argostranslate.__version__);print('site=',sys.path)")
 
-    if (-not (Test-Path (Join-Path $pythonDir "argostranslate"))) {
-        throw "argostranslate module folder missing after install: $(Join-Path $pythonDir 'argostranslate')"
+    $moduleRoot = Join-Path $pythonDir "argostranslate"
+    $moduleSite = Join-Path $sitePackagesDir "argostranslate"
+    if (-not (Test-Path $moduleRoot) -and -not (Test-Path $moduleSite)) {
+        throw "argostranslate module folder missing after install. Checked: $moduleRoot and $moduleSite"
     }
     if (-not (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
         throw "argostranslate wheel missing in wheelhouse: $wheelhouseDir"
