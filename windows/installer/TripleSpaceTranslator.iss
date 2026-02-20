@@ -31,10 +31,12 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\dist\win-x86\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: not Is64BitInstallMode
 Source: "..\dist\win-x86\{#MyAppExeName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion; Check: Is64BitInstallMode
+Source: "..\dist\offline-runtime\*"; DestDir: "{app}\offline-runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\local-libretranslate\*"; DestDir: "{app}\local-libretranslate"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\Offline Runtime"; Filename: "{app}\offline-runtime"
 Name: "{group}\Enable Local LibreTranslate (One Click)"; Filename: "{app}\local-libretranslate\one-click-local-libretranslate.bat"
 Name: "{group}\Stop Local LibreTranslate"; Filename: "{app}\local-libretranslate\stop-local-libretranslate.bat"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"

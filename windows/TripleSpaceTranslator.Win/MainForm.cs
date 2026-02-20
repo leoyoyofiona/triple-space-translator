@@ -85,7 +85,7 @@ public sealed class MainForm : Form
         root.Controls.Add(MakeLabel("Translator provider:"), 0, 1);
         _providerCombo.Dock = DockStyle.Fill;
         _providerCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        _providerCombo.Items.AddRange(new object[] { "OpenAI", "LibreTranslate" });
+        _providerCombo.Items.AddRange(new object[] { "Offline (Built-in)", "OpenAI", "LibreTranslate" });
         root.Controls.Add(_providerCombo, 1, 1);
 
         root.Controls.Add(MakeLabel("API key:"), 0, 2);
@@ -128,7 +128,7 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = false,
-            Text = "Tips: default mode uses LibreTranslate (no API key needed). If some apps block replacement, try running this app as Administrator.",
+            Text = "Tips: default mode uses built-in offline model (no network/API key). If some apps block replacement, try running this app as Administrator.",
             ForeColor = Color.DimGray
         };
         root.Controls.Add(hint, 0, 7);
@@ -165,44 +165,48 @@ public sealed class MainForm : Form
     private void ApplySettingsToUi()
     {
         _windowMsNumeric.Value = Math.Clamp(_settings.TriggerWindowMs, 250, 1500);
-        _providerCombo.SelectedItem = _settings.Provider is "LibreTranslate" ? "LibreTranslate" : "OpenAI";
-        _apiKeyText.Text = _settings.Provider is "LibreTranslate" ? _settings.LibreTranslateApiKey : _settings.OpenAiApiKey;
-        _baseUrlText.Text = _settings.Provider is "LibreTranslate" ? _settings.LibreTranslateUrl : _settings.OpenAiBaseUrl;
+        var providerUiValue = ToProviderUiValue(_settings.Provider);
+        _providerCombo.SelectedItem = providerUiValue;
+        if (providerUiValue == "LibreTranslate")
+        {
+            _apiKeyText.Text = _settings.LibreTranslateApiKey;
+            _baseUrlText.Text = _settings.LibreTranslateUrl;
+        }
+        else if (providerUiValue == "OpenAI")
+        {
+            _apiKeyText.Text = _settings.OpenAiApiKey;
+            _baseUrlText.Text = _settings.OpenAiBaseUrl;
+        }
+        else
+        {
+            _apiKeyText.Text = string.Empty;
+            _baseUrlText.Text = "(offline built-in model)";
+        }
         _modelText.Text = _settings.OpenAiModel;
 
         _providerCombo.SelectedIndexChanged += (_, _) =>
         {
-            var provider = (_providerCombo.SelectedItem as string) ?? "OpenAI";
-            if (provider == "LibreTranslate")
-            {
-                _baseUrlText.Text = _settings.LibreTranslateUrl;
-                _apiKeyText.Text = _settings.LibreTranslateApiKey;
-                _modelText.Enabled = false;
-            }
-            else
-            {
-                _baseUrlText.Text = _settings.OpenAiBaseUrl;
-                _apiKeyText.Text = _settings.OpenAiApiKey;
-                _modelText.Enabled = true;
-            }
+            var provider = (_providerCombo.SelectedItem as string) ?? "Offline (Built-in)";
+            ApplyProviderUiState(provider);
         };
 
-        _modelText.Enabled = (_providerCombo.SelectedItem as string) != "LibreTranslate";
+        ApplyProviderUiState(providerUiValue);
     }
 
     private void CollectSettingsFromUi()
     {
-        var provider = (_providerCombo.SelectedItem as string) ?? "OpenAI";
+        var providerUi = (_providerCombo.SelectedItem as string) ?? "Offline (Built-in)";
+        var provider = FromProviderUiValue(providerUi);
 
         _settings.TriggerWindowMs = (int)_windowMsNumeric.Value;
         _settings.Provider = provider;
 
-        if (provider == "LibreTranslate")
+        if (provider.Equals("LibreTranslate", StringComparison.OrdinalIgnoreCase))
         {
             _settings.LibreTranslateUrl = _baseUrlText.Text.Trim();
             _settings.LibreTranslateApiKey = _apiKeyText.Text;
         }
-        else
+        else if (provider.Equals("OpenAI", StringComparison.OrdinalIgnoreCase))
         {
             _settings.OpenAiBaseUrl = _baseUrlText.Text.Trim();
             _settings.OpenAiApiKey = _apiKeyText.Text;
@@ -398,6 +402,60 @@ public sealed class MainForm : Form
         }
 
         return message.Length <= maxLen ? message : message[..maxLen];
+    }
+
+    private static string ToProviderUiValue(string? provider)
+    {
+        if (string.Equals(provider, "LibreTranslate", StringComparison.OrdinalIgnoreCase))
+        {
+            return "LibreTranslate";
+        }
+
+        if (string.Equals(provider, "OpenAI", StringComparison.OrdinalIgnoreCase))
+        {
+            return "OpenAI";
+        }
+
+        return "Offline (Built-in)";
+    }
+
+    private static string FromProviderUiValue(string providerUi)
+    {
+        return providerUi switch
+        {
+            "OpenAI" => "OpenAI",
+            "LibreTranslate" => "LibreTranslate",
+            _ => "OfflineModel"
+        };
+    }
+
+    private void ApplyProviderUiState(string providerUi)
+    {
+        if (providerUi == "LibreTranslate")
+        {
+            _baseUrlText.Text = _settings.LibreTranslateUrl;
+            _apiKeyText.Text = _settings.LibreTranslateApiKey;
+            _apiKeyText.Enabled = true;
+            _baseUrlText.Enabled = true;
+            _modelText.Enabled = false;
+            return;
+        }
+
+        if (providerUi == "OpenAI")
+        {
+            _baseUrlText.Text = _settings.OpenAiBaseUrl;
+            _apiKeyText.Text = _settings.OpenAiApiKey;
+            _apiKeyText.Enabled = true;
+            _baseUrlText.Enabled = true;
+            _modelText.Enabled = true;
+            return;
+        }
+
+        _baseUrlText.Text = "(offline built-in model)";
+        _apiKeyText.Text = string.Empty;
+        _apiKeyText.Enabled = false;
+        _baseUrlText.Enabled = false;
+        _modelText.Enabled = false;
     }
 
     private bool TryResolveToggleTarget(string currentInput, out string target)

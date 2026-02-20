@@ -31,8 +31,8 @@
 - 仓库内含 iOS 自定义键盘 MVP
 - 翻译引擎：
   - macOS / iOS：Apple 系统 Translation.framework
+  - Windows 首次安装默认：内置离线模型（无需网络、无需 API key）
   - Windows：OpenAI 或 LibreTranslate（支持 Docker 本地一键模式）
-  - Windows 首次安装默认：公共 LibreTranslate（无需 API key）
 
 ## 新增：回切翻译
 

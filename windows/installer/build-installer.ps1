@@ -2,6 +2,7 @@ param(
     [string]$Configuration = "Release",
     [string]$AppVersion = "1.0.0",
     [switch]$SkipPublish,
+    [switch]$SkipOfflineRuntime,
     [string]$IsccPath = ""
 )
 
@@ -14,12 +15,23 @@ $distRoot = Join-Path $windowsRoot "dist"
 $outX86 = Join-Path $distRoot "win-x86"
 $outX64 = Join-Path $distRoot "win-x64"
 $outArm64 = Join-Path $distRoot "win-arm64"
+$outOfflineRuntime = Join-Path $distRoot "offline-runtime"
 $setupOut = Join-Path $distRoot "installer"
 
 New-Item -ItemType Directory -Force -Path $outX86 | Out-Null
 New-Item -ItemType Directory -Force -Path $outX64 | Out-Null
 New-Item -ItemType Directory -Force -Path $outArm64 | Out-Null
 New-Item -ItemType Directory -Force -Path $setupOut | Out-Null
+
+$offlinePrepareScript = Join-Path $windowsRoot "offline-model\prepare-offline-runtime.ps1"
+if (-not $SkipOfflineRuntime) {
+    if (-not (Test-Path $offlinePrepareScript)) {
+        throw "Offline runtime prepare script not found: $offlinePrepareScript"
+    }
+
+    Write-Host "Preparing offline runtime..." -ForegroundColor Cyan
+    powershell -ExecutionPolicy Bypass -File $offlinePrepareScript -OutDir $outOfflineRuntime
+}
 
 if (-not (Test-Path $projectPath)) {
     throw "Project file not found: $projectPath. Run this script from windows\\installer inside the repo."
@@ -48,6 +60,14 @@ if (-not (Test-Path (Join-Path $outX64 $exeName))) {
 }
 if (-not (Test-Path (Join-Path $outArm64 $exeName))) {
     throw "Missing arm64 publish output: $outArm64\$exeName"
+}
+if (-not $SkipOfflineRuntime) {
+    if (-not (Test-Path (Join-Path $outOfflineRuntime "python\\python.exe"))) {
+        throw "Missing offline runtime python: $outOfflineRuntime\\python\\python.exe"
+    }
+    if (-not (Test-Path (Join-Path $outOfflineRuntime "translate_once.py"))) {
+        throw "Missing offline runtime script: $outOfflineRuntime\\translate_once.py"
+    }
 }
 
 Copy-Item (Join-Path $outX86 $exeName) (Join-Path $setupOut "TripleSpaceTranslator-win-x86.exe") -Force

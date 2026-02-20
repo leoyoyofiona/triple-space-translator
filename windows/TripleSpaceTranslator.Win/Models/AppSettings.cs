@@ -7,9 +7,9 @@ public sealed class AppSettings
     public string SourceLanguage { get; set; } = "zh-CN";
     public string TargetLanguage { get; set; } = "en";
 
-    // Translation provider: OpenAI or LibreTranslate
-    // Default to LibreTranslate for out-of-box usage without API key.
-    public string Provider { get; set; } = "LibreTranslate";
+    // Translation provider: OfflineModel, OpenAI, LibreTranslate
+    // Default to OfflineModel for out-of-box offline usage.
+    public string Provider { get; set; } = "OfflineModel";
 
     // OpenAI-compatible settings
     public string OpenAiBaseUrl { get; set; } = "https://api.openai.com/v1";

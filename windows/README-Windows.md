@@ -19,16 +19,18 @@ This is the Windows stable edition of your app.
 
 ## Translation provider
 
-The app supports two providers:
+The app supports three providers:
 
+- `Offline (Built-in)` (default, no network/API key)
 - `OpenAI` (recommended for quality)
 - `LibreTranslate` (works with local/self-hosted endpoint)
 
 Default behavior (out-of-box):
 
-- Fresh install defaults to `LibreTranslate`.
+- Fresh install defaults to `Offline (Built-in)`.
 - No API key is required for first use.
-- If one public endpoint is unavailable, app will auto-try fallback endpoint(s).
+- No network is required in offline mode.
+- Installer size is larger because zh<->en model runtime is bundled.
 
 ## One-click local LibreTranslate (faster, no online API latency)
 
@@ -104,6 +106,11 @@ Output example:
 cd windows\installer
 powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 -AppVersion 1.0.0
 ```
+
+Notes:
+
+- This script now prepares bundled offline runtime (`windows\\dist\\offline-runtime`) before packaging.
+- First build may take longer due Python/runtime/model download.
 
 Installer output:
 

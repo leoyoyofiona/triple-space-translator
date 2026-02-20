@@ -58,10 +58,23 @@ public sealed class SettingsService
     {
         var changed = false;
 
-        if (string.Equals(settings.Provider, "OpenAI", StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
+        if (string.IsNullOrWhiteSpace(settings.Provider))
         {
-            settings.Provider = "LibreTranslate";
+            settings.Provider = "OfflineModel";
+            changed = true;
+        }
+        else if (!string.Equals(settings.Provider, "OfflineModel", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(settings.Provider, "Offline", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(settings.Provider, "OpenAI", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(settings.Provider, "LibreTranslate", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.Provider = "OfflineModel";
+            changed = true;
+        }
+        else if (string.Equals(settings.Provider, "OpenAI", StringComparison.OrdinalIgnoreCase) &&
+                 string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
+        {
+            settings.Provider = "OfflineModel";
             changed = true;
         }
 
