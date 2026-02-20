@@ -56,6 +56,7 @@ final class FocusedElementTextController {
     func captureTextViaSelectAllCutFallback() -> String? {
         let pasteboard = NSPasteboard.general
         let snapshot = snapshotPasteboardItems(pasteboard)
+        let previousChangeCount = pasteboard.changeCount
 
         guard postShortcut(keyCode: 0),   // A
               postShortcut(keyCode: 7)    // X
@@ -64,8 +65,11 @@ final class FocusedElementTextController {
             return nil
         }
 
-        usleep(120_000)
-        let cutText = readTextFromPasteboard(pasteboard)
+        let cutText = waitForPasteboardString(
+            on: pasteboard,
+            previousChangeCount: previousChangeCount,
+            timeout: cutReadTimeoutSeconds()
+        ) ?? readTextFromPasteboard(pasteboard)
         restorePasteboard(snapshot, on: pasteboard)
         return cutText
     }
@@ -140,6 +144,7 @@ final class FocusedElementTextController {
     private func readTextViaSelectAllCopyFallback() -> String? {
         let pasteboard = NSPasteboard.general
         let snapshot = snapshotPasteboardItems(pasteboard)
+        let previousChangeCount = pasteboard.changeCount
 
         guard postShortcut(keyCode: 0),   // A
               postShortcut(keyCode: 8)    // C
@@ -148,8 +153,11 @@ final class FocusedElementTextController {
             return nil
         }
 
-        usleep(copyReadDelayMicroseconds())
-        let copiedText = readTextFromPasteboard(pasteboard)
+        let copiedText = waitForPasteboardString(
+            on: pasteboard,
+            previousChangeCount: previousChangeCount,
+            timeout: copyReadTimeoutSeconds()
+        ) ?? readTextFromPasteboard(pasteboard)
         restorePasteboard(snapshot, on: pasteboard)
         return copiedText
     }
@@ -323,8 +331,12 @@ final class FocusedElementTextController {
         return 0.35
     }
 
-    private func copyReadDelayMicroseconds() -> useconds_t {
-        isWPSForeground() ? 300_000 : 120_000
+    private func copyReadTimeoutSeconds() -> TimeInterval {
+        isWPSForeground() ? 1.4 : 0.8
+    }
+
+    private func cutReadTimeoutSeconds() -> TimeInterval {
+        isWPSForeground() ? 1.6 : 0.9
     }
 
     private func isWPSForeground() -> Bool {
@@ -359,6 +371,27 @@ final class FocusedElementTextController {
         value
             .replacingOccurrences(of: "\r\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func waitForPasteboardString(
+        on pasteboard: NSPasteboard,
+        previousChangeCount: Int,
+        timeout: TimeInterval
+    ) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if pasteboard.changeCount != previousChangeCount,
+               let text = readTextFromPasteboard(pasteboard),
+               !text.isEmpty {
+                return text
+            }
+            usleep(40_000)
+        } while Date() < deadline
+
+        if let fallbackText = readTextFromPasteboard(pasteboard), !fallbackText.isEmpty {
+            return fallbackText
+        }
+        return nil
     }
 
 }

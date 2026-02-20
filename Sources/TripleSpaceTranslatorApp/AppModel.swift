@@ -115,6 +115,8 @@ final class AppModel: ObservableObject {
             }
 
             if replaced {
+                cacheTranslationPair(source: inputWithoutTrigger, target: pairTarget)
+                lastTranslationPair = (left: inputWithoutTrigger, right: pairTarget)
                 lastStatus = "已切换回上一轮对应文本"
             } else {
                 if usedCutFallback {
@@ -134,6 +136,8 @@ final class AppModel: ObservableObject {
             }
 
             if replaced {
+                cacheTranslationPair(source: inputWithoutTrigger, target: cachedText)
+                lastTranslationPair = (left: inputWithoutTrigger, right: cachedText)
                 lastStatus = "已从最近翻译记录切换回对应文本"
             } else {
                 if usedCutFallback {
