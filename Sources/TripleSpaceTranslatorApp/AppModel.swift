@@ -216,6 +216,12 @@ final class AppModel: ObservableObject {
             return fuzzy
         }
 
+        if let contained = translationCache.first(where: { key, _ in
+            looksEquivalent(normalizedSource, key)
+        })?.value, !looksEquivalent(contained, normalizedSource) {
+            return contained
+        }
+
         return nil
     }
 
@@ -224,28 +230,45 @@ final class AppModel: ObservableObject {
 
         let leftNorm = pair.left.translationCacheKey
         let rightNorm = pair.right.translationCacheKey
-        let currentNorm = currentInput.translationCacheKey
-        let currentLoose = currentInput.translationLooseKey
 
         // Prefer alternating from the last applied output to tolerate stale text reads from some editors.
         if let lastApplied = lastAppliedOutputText?.translationCacheKey {
-            if lastApplied == leftNorm,
-               currentNorm == leftNorm || currentNorm == rightNorm || (!currentLoose.isEmpty && (currentLoose == pair.left.translationLooseKey || currentLoose == pair.right.translationLooseKey)) {
+            if looksEquivalent(lastApplied, leftNorm),
+               looksEquivalent(currentInput, leftNorm) || looksEquivalent(currentInput, rightNorm) {
                 return pair.right
             }
-            if lastApplied == rightNorm,
-               currentNorm == leftNorm || currentNorm == rightNorm || (!currentLoose.isEmpty && (currentLoose == pair.left.translationLooseKey || currentLoose == pair.right.translationLooseKey)) {
+            if looksEquivalent(lastApplied, rightNorm),
+               looksEquivalent(currentInput, leftNorm) || looksEquivalent(currentInput, rightNorm) {
                 return pair.left
             }
         }
 
-        if currentNorm == leftNorm || (!currentLoose.isEmpty && currentLoose == pair.left.translationLooseKey) {
+        if looksEquivalent(currentInput, leftNorm) {
             return pair.right
         }
-        if currentNorm == rightNorm || (!currentLoose.isEmpty && currentLoose == pair.right.translationLooseKey) {
+        if looksEquivalent(currentInput, rightNorm) {
             return pair.left
         }
         return nil
+    }
+
+    private func looksEquivalent(_ lhs: String, _ rhs: String) -> Bool {
+        let left = lhs.translationCacheKey
+        let right = rhs.translationCacheKey
+        guard !left.isEmpty, !right.isEmpty else { return false }
+        if left == right { return true }
+
+        let leftLoose = left.translationLooseKey
+        let rightLoose = right.translationLooseKey
+        guard !leftLoose.isEmpty, !rightLoose.isEmpty else { return false }
+        if leftLoose == rightLoose { return true }
+
+        let minLen = min(leftLoose.count, rightLoose.count)
+        if minLen >= 4 && (leftLoose.contains(rightLoose) || rightLoose.contains(leftLoose)) {
+            return true
+        }
+
+        return false
     }
 
     private func cacheTranslationPair(source: String, target: String) {
