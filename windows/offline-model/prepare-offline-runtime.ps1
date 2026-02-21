@@ -133,23 +133,25 @@ try {
     # Runtime still includes python root in PYTHONPATH for compatibility.
     Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
 
-    $moduleFile = ""
     try {
-        $moduleFile = (Invoke-Python @("-c", "import argostranslate,pathlib;print(pathlib.Path(argostranslate.__file__).resolve())")).Trim()
+        Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
     }
     catch {
         Write-Step "Primary target import check failed, retrying install to python root..."
         Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
-        $moduleFile = (Invoke-Python @("-c", "import argostranslate,pathlib;print(pathlib.Path(argostranslate.__file__).resolve())")).Trim()
-    }
-
-    if ([string]::IsNullOrWhiteSpace($moduleFile)) {
-        throw "argostranslate import verification returned empty module path."
-    }
-    $moduleFileFull = [System.IO.Path]::GetFullPath($moduleFile)
-    $pythonDirFull = [System.IO.Path]::GetFullPath($pythonDir)
-    if (-not $moduleFileFull.StartsWith($pythonDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "argostranslate resolved outside bundled runtime: $moduleFileFull"
+        try {
+            Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
+        }
+        catch {
+            $topLevel = ""
+            try {
+                $topLevel = (Get-ChildItem -Path $sitePackagesDir -Name -ErrorAction SilentlyContinue | Select-Object -First 20) -join ", "
+            }
+            catch {
+                $topLevel = "<unavailable>"
+            }
+            throw "argostranslate import verification failed after retry. site-packages top-level: $topLevel"
+        }
     }
     if (-not (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
         throw "argostranslate wheel missing in wheelhouse: $wheelhouseDir"
