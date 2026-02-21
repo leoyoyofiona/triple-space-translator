@@ -46,6 +46,7 @@ public sealed class OfflineModelTranslator : ITranslator
             StandardErrorEncoding = Encoding.UTF8
         };
         startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
+        startInfo.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
         startInfo.EnvironmentVariables["HOME"] = offlineHome;
         startInfo.EnvironmentVariables["USERPROFILE"] = offlineHome;
         var pythonRoot = Path.Combine(AppContext.BaseDirectory, "offline-runtime", "python");

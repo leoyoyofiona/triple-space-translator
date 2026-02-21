@@ -17,7 +17,7 @@ $workDir = Join-Path $env:TEMP ("tst-offline-runtime-" + [Guid]::NewGuid().ToStr
 $pythonDir = Join-Path $OutDir "python"
 $offlineHome = Join-Path $OutDir "home"
 $wheelhouseDir = Join-Path $OutDir "wheelhouse"
-$sitePackagesDir = Join-Path $pythonDir "Lib\\site-packages"
+$sitePackagesDir = Join-Path (Join-Path $pythonDir "Lib") "site-packages"
 $embedZip = Join-Path $workDir "python-embed.zip"
 $getPip = Join-Path $workDir "get-pip.py"
 
@@ -37,6 +37,7 @@ function Invoke-Python([string[]]$args, [hashtable]$extraEnv = @{}) {
     }
 
     $psi.Environment["PYTHONUTF8"] = "1"
+    $psi.Environment["PYTHONNOUSERSITE"] = "1"
     foreach ($key in $extraEnv.Keys) {
         $psi.Environment[$key] = [string]$extraEnv[$key]
     }
@@ -98,7 +99,7 @@ try {
             continue
         }
 
-        if ($line -eq 'Lib\\site-packages') {
+        if ($line -eq 'Lib\site-packages') {
             $hasSitePackages = $true
         }
 
@@ -106,7 +107,7 @@ try {
     }
 
     if (-not $hasSitePackages) {
-        $updated += 'Lib\\site-packages'
+        $updated += 'Lib\site-packages'
     }
 
     # Important: _pth must be written without BOM, otherwise python311.zip path may become "\ufeffpython311.zip"
@@ -128,13 +129,18 @@ try {
     Write-Step "Installing offline engine dependencies into bundled runtime..."
     # Embedded Python behaves most consistently when dependencies are under Lib\site-packages.
     # Runtime still includes python root in PYTHONPATH for compatibility.
-    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "argostranslate==1.9.6")
+    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6")
     Invoke-Python @("-c", "import argostranslate,sys;print('argostranslate=',argostranslate.__version__);print('site=',sys.path)")
 
-    $moduleRoot = Join-Path $pythonDir "argostranslate"
-    $moduleSite = Join-Path $sitePackagesDir "argostranslate"
-    if (-not (Test-Path $moduleRoot) -and -not (Test-Path $moduleSite)) {
-        throw "argostranslate module folder missing after install. Checked: $moduleRoot and $moduleSite"
+    $moduleFile = ""
+    $moduleFile = (& (Join-Path $pythonDir "python.exe") -c "import argostranslate, pathlib; print(pathlib.Path(argostranslate.__file__).resolve())").Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($moduleFile)) {
+        throw "argostranslate import verification failed after install."
+    }
+    $moduleFileFull = [System.IO.Path]::GetFullPath($moduleFile)
+    $pythonDirFull = [System.IO.Path]::GetFullPath($pythonDir)
+    if (-not $moduleFileFull.StartsWith($pythonDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "argostranslate resolved outside bundled runtime: $moduleFileFull"
     }
     if (-not (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
         throw "argostranslate wheel missing in wheelhouse: $wheelhouseDir"
