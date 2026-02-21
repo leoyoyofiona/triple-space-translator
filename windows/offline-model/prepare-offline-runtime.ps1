@@ -204,7 +204,7 @@ for source, target in pairs:
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
 
-    Write-Step "Packing site-packages fallback archive..."
+    Write-Step "Packing site-packages fallback archive (best effort)..."
     $packScriptPath = Join-Path $workDir "pack_site_packages.py"
     @'
 import pathlib
@@ -225,14 +225,15 @@ with zipfile.ZipFile(dst, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
 print(dst)
 '@ | Set-Content -Path $packScriptPath -Encoding UTF8
 
-    Invoke-Python @($packScriptPath, $sitePackagesDir, $sitePackagesArchive) | Out-Null
-
-    if (-not (Test-Path $sitePackagesArchive)) {
-        throw "Missing site-packages fallback archive: $sitePackagesArchive"
+    try {
+        Invoke-Python @($packScriptPath, $sitePackagesDir, $sitePackagesArchive) | Out-Null
+        if (-not (Test-Path $sitePackagesArchive)) {
+            Write-Step "Warning: fallback archive not generated, will rely on bundled site-packages at runtime."
+        }
     }
-
-    # Keep installer robust on end-user machines by loading dependencies from user-writable path at runtime.
-    Get-ChildItem -Path $sitePackagesDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    catch {
+        Write-Step "Warning: failed to pack fallback archive: $($_.Exception.Message)"
+    }
 
     Write-Step "Offline runtime ready: $OutDir"
     Get-ChildItem -Path $OutDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
