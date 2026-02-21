@@ -161,16 +161,14 @@ try {
         "import argostranslate, pathlib, os; p=pathlib.Path(argostranslate.__file__).resolve(); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert str(p).lower().startswith(str(root).lower()), f'argostranslate outside runtime: {p}'; print(p)"
     ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
-    $argosInit = Get-ChildItem -Path $pythonDir -Recurse -File -Filter "__init__.py" -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match '[\\/]argostranslate[\\/]__init__\.py$' } |
-        Select-Object -First 1
-    if (-not $argosInit) {
-        throw "argostranslate package files not found under bundled runtime: $pythonDir"
-    }
+    Invoke-Python @(
+        "-c",
+        "import argostranslate, pathlib; p=pathlib.Path(argostranslate.__file__).resolve(); assert p.exists(), f'module path missing: {p}'; assert p.name=='__init__.py', f'unexpected module path: {p}'"
+    ) | Out-Null
 
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
     try {
-        Invoke-Python @("-m", "pip", "download", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
+        Invoke-Python @("-m", "pip", "download", "--no-deps", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
     }
     catch {
         Write-Step "Warning: wheelhouse download skipped: $($_.Exception.Message)"

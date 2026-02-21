@@ -100,10 +100,23 @@ def ensure_argostranslate_available() -> None:
                 # Continue to pip-based recovery as fallback.
                 first_exc = RuntimeError(f"{first_exc}; archive_extract={archive_exc}")
 
+        # Secondary self-heal path: unpack argostranslate wheel directly (works without pip).
+        wheel_candidates = sorted(wheelhouse.glob("argostranslate-*.whl")) if wheelhouse.exists() else []
+        if wheel_candidates:
+            try:
+                with zipfile.ZipFile(wheel_candidates[-1], "r") as zf:
+                    zf.extractall(user_site_path)
+                if user_site not in sys.path:
+                    sys.path.insert(0, user_site)
+                import argostranslate.translate  # noqa: F401
+                return
+            except Exception as wheel_exc:
+                first_exc = RuntimeError(f"{first_exc}; wheel_extract={wheel_exc}")
+
         if importlib.util.find_spec("pip") is None:
             fail(
                 "argostranslate import failed and pip is unavailable for self-heal: "
-                f"{first_exc}; archive_exists={site_archive.exists()}; sys.path={sys.path}"
+                f"{first_exc}; archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
             )
 
         if python_exe.exists() and wheelhouse.exists():
