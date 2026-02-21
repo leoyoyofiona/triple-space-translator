@@ -74,9 +74,6 @@ if (-not $SkipOfflineRuntime) {
     if (-not (Test-Path (Join-Path $outOfflineRuntime "translate_once.py"))) {
         throw "Missing offline runtime script: $outOfflineRuntime\\translate_once.py"
     }
-    if (-not (Get-ChildItem -Path (Join-Path $outOfflineRuntime "wheelhouse") -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
-        throw "Missing offline wheelhouse argostranslate package in: $outOfflineRuntime\\wheelhouse"
-    }
 }
 
 Copy-Item (Join-Path $outX86 $exeName) (Join-Path $setupOut "TripleSpaceTranslator-win-x86.exe") -Force

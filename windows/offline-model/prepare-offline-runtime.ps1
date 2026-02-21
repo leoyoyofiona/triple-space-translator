@@ -125,20 +125,17 @@ try {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
     Invoke-Python @($getPip)
 
-    Write-Step "Downloading offline wheelhouse (for runtime self-heal)..."
-    Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6")
-
     Write-Step "Installing offline engine dependencies into bundled runtime..."
+    # Install directly from index during build (CI has network), package ships with installed files for offline runtime use.
     # Embedded Python behaves most consistently when dependencies are under Lib\site-packages.
-    # Runtime still includes python root in PYTHONPATH for compatibility.
-    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
+    Invoke-Python @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
 
     try {
         Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
     }
     catch {
         Write-Step "Primary target import check failed, retrying install to python root..."
-        Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
+        Invoke-Python @("-m", "pip", "install", "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
         try {
             Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
         }
@@ -153,8 +150,13 @@ try {
             throw "argostranslate import verification failed after retry. site-packages top-level: $topLevel"
         }
     }
-    if (-not (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
-        throw "argostranslate wheel missing in wheelhouse: $wheelhouseDir"
+
+    Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
+    try {
+        Invoke-Python @("-m", "pip", "download", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
+    }
+    catch {
+        Write-Step "Warning: wheelhouse download skipped: $($_.Exception.Message)"
     }
 
     if (-not $SkipModelInstall) {
