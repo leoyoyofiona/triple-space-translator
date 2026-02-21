@@ -135,6 +135,8 @@ try {
     Invoke-Python @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
     # Ensure package files exist even when dependency resolver behaves unexpectedly.
     Invoke-Python @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
+    # Also install to python root as fallback source for deterministic copy into site-packages.
+    Invoke-Python @("-m", "pip", "install", "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
 
     try {
         Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
@@ -157,26 +159,12 @@ try {
         }
     }
 
-    # Ensure argostranslate is really loaded from bundled runtime, not any external path.
-    $moduleFile = (Invoke-Python @(
-        "-c",
-        "import argostranslate, pathlib; print(pathlib.Path(argostranslate.__file__).resolve())"
-    )).Trim()
-    if ([string]::IsNullOrWhiteSpace($moduleFile)) {
-        throw "argostranslate module path is empty after install"
-    }
-
-    Invoke-Python @(
-        "-c",
-        "import argostranslate, pathlib, os; p=pathlib.Path(argostranslate.__file__).resolve(); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert str(p).lower().startswith(str(root).lower()), f'argostranslate outside runtime: {p}'; print(p)"
-    ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
-
-    $moduleDir = Split-Path -Parent $moduleFile
     $targetArgosDir = Join-Path $sitePackagesDir "argostranslate"
-    if (-not (Test-Path $targetArgosDir)) {
-        Write-Step "Copying argostranslate package from resolved module path into bundled site-packages..."
+    $rootArgosDir = Join-Path $pythonDir "argostranslate"
+    if (-not (Test-Path $targetArgosDir) -and (Test-Path $rootArgosDir)) {
+        Write-Step "Copying argostranslate package from python root into bundled site-packages..."
         New-Item -ItemType Directory -Force -Path $targetArgosDir | Out-Null
-        Copy-Item -Path (Join-Path $moduleDir "*") -Destination $targetArgosDir -Recurse -Force
+        Copy-Item -Path (Join-Path $rootArgosDir "*") -Destination $targetArgosDir -Recurse -Force
     }
     if (-not (Test-Path (Join-Path $targetArgosDir "__init__.py"))) {
         throw "Bundled argostranslate package missing __init__.py after copy: $targetArgosDir"
@@ -184,8 +172,8 @@ try {
 
     Invoke-Python @(
         "-c",
-        "import argostranslate, pathlib; p=pathlib.Path(argostranslate.__file__).resolve(); assert p.exists(), f'module path missing: {p}'; assert p.name=='__init__.py', f'unexpected module path: {p}'"
-    ) | Out-Null
+        "import argostranslate, pathlib, os; p=pathlib.Path(argostranslate.__file__).resolve(); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert p.exists(), f'module path missing: {p}'; assert str(p).lower().startswith(str(root).lower()), f'argostranslate outside runtime: {p}'"
+    ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
     $wheelOk = $false
