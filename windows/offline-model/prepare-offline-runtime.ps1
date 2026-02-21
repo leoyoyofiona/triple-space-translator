@@ -167,11 +167,31 @@ try {
     ) | Out-Null
 
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
+    $wheelOk = $false
     try {
         Invoke-Python @("-m", "pip", "download", "--no-deps", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
+        if (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) {
+            $wheelOk = $true
+        }
     }
     catch {
-        Write-Step "Warning: wheelhouse download skipped: $($_.Exception.Message)"
+        Write-Step "Warning: wheelhouse download failed: $($_.Exception.Message)"
+    }
+
+    if (-not $wheelOk) {
+        try {
+            Invoke-Python @("-m", "pip", "wheel", "--no-deps", "--wheel-dir", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
+            if (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) {
+                $wheelOk = $true
+            }
+        }
+        catch {
+            Write-Step "Warning: wheelhouse build failed: $($_.Exception.Message)"
+        }
+    }
+
+    if (-not $wheelOk) {
+        throw "Missing argostranslate wheel in wheelhouse after download/build attempts: $wheelhouseDir"
     }
 
     if (-not $SkipModelInstall) {

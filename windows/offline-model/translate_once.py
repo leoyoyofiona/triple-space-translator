@@ -81,11 +81,24 @@ def ensure_argostranslate_available() -> None:
         python_exe = runtime_root / "python" / "python.exe"
         wheelhouse = runtime_root / "wheelhouse"
         site_archive = runtime_root / "offline-site-packages.zip"
+        bundled_site = runtime_root / "python" / "Lib" / "site-packages"
+        bundled_argos = bundled_site / "argostranslate"
         user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
         if not user_site:
             user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
         user_site_path = pathlib.Path(user_site)
         user_site_path.mkdir(parents=True, exist_ok=True)
+
+        # First self-heal path: copy packaged site-packages to user-writable location.
+        if bundled_argos.exists():
+            try:
+                shutil.copytree(bundled_site, user_site_path, dirs_exist_ok=True)
+                if user_site not in sys.path:
+                    sys.path.insert(0, user_site)
+                import argostranslate.translate  # noqa: F401
+                return
+            except Exception as bundled_copy_exc:
+                first_exc = RuntimeError(f"{first_exc}; bundled_copy={bundled_copy_exc}")
 
         # Primary self-heal path: unpack bundled site-packages archive (works fully offline, no pip required).
         if site_archive.exists():
@@ -116,7 +129,8 @@ def ensure_argostranslate_available() -> None:
         if importlib.util.find_spec("pip") is None:
             fail(
                 "argostranslate import failed and pip is unavailable for self-heal: "
-                f"{first_exc}; archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
+                f"{first_exc}; bundled_site_exists={bundled_site.exists()}; bundled_argos_exists={bundled_argos.exists()}; "
+                f"archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
             )
 
         if python_exe.exists() and wheelhouse.exists():
