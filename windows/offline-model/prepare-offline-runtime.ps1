@@ -18,6 +18,7 @@ $pythonDir = Join-Path $OutDir "python"
 $offlineHome = Join-Path $OutDir "home"
 $wheelhouseDir = Join-Path $OutDir "wheelhouse"
 $sitePackagesDir = Join-Path (Join-Path $pythonDir "Lib") "site-packages"
+$sitePackagesArchive = Join-Path $OutDir "offline-site-packages.zip"
 $embedZip = Join-Path $workDir "python-embed.zip"
 $getPip = Join-Path $workDir "get-pip.py"
 
@@ -73,6 +74,9 @@ try {
     }
     if (Test-Path $wheelhouseDir) {
         Remove-Item -Recurse -Force $wheelhouseDir
+    }
+    if (Test-Path $sitePackagesArchive) {
+        Remove-Item -Force $sitePackagesArchive
     }
 
     New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
@@ -199,6 +203,36 @@ for source, target in pairs:
     catch {
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
+
+    Write-Step "Packing site-packages fallback archive..."
+    $packScriptPath = Join-Path $workDir "pack_site_packages.py"
+    @'
+import pathlib
+import sys
+import zipfile
+
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+
+if not src.exists():
+    raise RuntimeError(f"source not found: {src}")
+
+with zipfile.ZipFile(dst, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+    for p in src.rglob("*"):
+        if p.is_file():
+            zf.write(p, p.relative_to(src).as_posix())
+
+print(dst)
+'@ | Set-Content -Path $packScriptPath -Encoding UTF8
+
+    Invoke-Python @($packScriptPath, $sitePackagesDir, $sitePackagesArchive) | Out-Null
+
+    if (-not (Test-Path $sitePackagesArchive)) {
+        throw "Missing site-packages fallback archive: $sitePackagesArchive"
+    }
+
+    # Keep installer robust on end-user machines by loading dependencies from user-writable path at runtime.
+    Get-ChildItem -Path $sitePackagesDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
     Write-Step "Offline runtime ready: $OutDir"
     Get-ChildItem -Path $OutDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
