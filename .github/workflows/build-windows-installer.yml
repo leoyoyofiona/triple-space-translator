@@ -42,6 +42,32 @@ jobs:
           $version = "${{ github.event.inputs.app_version }}"
           powershell -ExecutionPolicy Bypass -File "windows/installer/build-installer.ps1" -AppVersion $version
 
+      - name: Capture offline runtime debug (always)
+        if: always()
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          $debugDir = "windows/dist/debug"
+          New-Item -ItemType Directory -Force -Path $debugDir | Out-Null
+          $runtimeRoot = "windows/dist/offline-runtime"
+          if (Test-Path $runtimeRoot) {
+            Get-ChildItem -Path $runtimeRoot -Recurse -Force |
+              Select-Object FullName, Length, LastWriteTime |
+              Out-File -FilePath (Join-Path $debugDir "offline-runtime-tree.txt") -Encoding utf8
+            $keyFiles = @(
+              "python\\Lib\\site-packages\\argostranslate\\__init__.py",
+              "python\\Lib\\site-packages\\argostranslate\\translate.py",
+              "python\\Lib\\site-packages\\argostranslate\\package.py",
+              "offline-site-packages.zip"
+            )
+            foreach ($rel in $keyFiles) {
+              $path = Join-Path $runtimeRoot $rel
+              "$rel => $(Test-Path $path)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
+            }
+          } else {
+            "offline-runtime not found: $runtimeRoot" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-tree.txt") -Encoding utf8
+          }
+
       - name: Locate installer
         id: locate
         shell: powershell
@@ -75,6 +101,15 @@ jobs:
             windows/dist/installer/TripleSpaceTranslator-win-x64.exe
             windows/dist/installer/TripleSpaceTranslator-win-arm64.exe
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload debug artifact (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-offline-runtime-debug-${{ github.event.inputs.app_version }}
+          path: windows/dist/debug/*
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Publish GitHub Release asset

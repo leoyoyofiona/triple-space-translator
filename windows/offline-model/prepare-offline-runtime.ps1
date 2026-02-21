@@ -139,13 +139,13 @@ try {
     Invoke-Python @("-m", "pip", "install", "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
 
     try {
-        Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
+        Invoke-Python @("-c", "import argostranslate.translate as _t;print('argostranslate_translate_import_ok')") | Out-Null
     }
     catch {
         Write-Step "Primary target import check failed, retrying install to python root..."
         Invoke-Python @("-m", "pip", "install", "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
         try {
-            Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null
+            Invoke-Python @("-c", "import argostranslate.translate as _t;print('argostranslate_translate_import_ok')") | Out-Null
         }
         catch {
             $topLevel = ""
@@ -159,60 +159,116 @@ try {
         }
     }
 
-    Write-Step "Ensuring bundled argostranslate package files via deterministic staged install..."
-    $stageDir = Join-Path $workDir "argostranslate-stage"
-    if (Test-Path $stageDir) {
-        Remove-Item -Recurse -Force $stageDir
-    }
-    New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
-    Invoke-Python @("-m", "pip", "install", "--target", $stageDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
-
-    $stageArgosDir = Join-Path $stageDir "argostranslate"
-    $stageTranslate = Join-Path $stageArgosDir "translate.py"
-    if (-not (Test-Path $stageTranslate)) {
-        $stageTop = ""
-        try {
-            $stageTop = (Get-ChildItem -Path $stageDir -Name -ErrorAction SilentlyContinue | Select-Object -First 40) -join ", "
-        }
-        catch {
-            $stageTop = "<unavailable>"
-        }
-        throw "Staged argostranslate package missing translate.py: $stageTranslate; stage_top=$stageTop"
-    }
-
+    Write-Step "Ensuring bundled argostranslate package files..."
     $targetArgosDir = Join-Path $sitePackagesDir "argostranslate"
-    $copyStageScriptPath = Join-Path $workDir "copy_argostranslate_stage.py"
+    $targetArgosTranslate = Join-Path $targetArgosDir "translate.py"
+    $targetArgosInit = Join-Path $targetArgosDir "__init__.py"
+    $targetArgosPackage = Join-Path $targetArgosDir "package.py"
+    $bootstrapWheelDir = Join-Path $workDir "bootstrap-wheelhouse"
+
+    $copyFromImportScriptPath = Join-Path $workDir "copy_argostranslate_from_import.py"
     @'
 import os
 import pathlib
 import shutil
+import argostranslate.translate as tr
 
-src = pathlib.Path(os.environ["TST_STAGE_PKG"]).resolve()
+src = pathlib.Path(tr.__file__).resolve().parent
 dst = pathlib.Path(os.environ["TST_TARGET_PKG"]).resolve()
 
 if not (src / "translate.py").exists():
-    raise RuntimeError(f"stage package missing translate.py: {src}")
+    raise RuntimeError(f"source package missing translate.py: {src}")
 
 shutil.rmtree(dst, ignore_errors=True)
 shutil.copytree(src, dst)
 
-file_count = sum(1 for p in dst.rglob("*") if p.is_file())
-if file_count == 0:
-    raise RuntimeError(f"copied package is empty: {dst}")
 if not (dst / "translate.py").exists():
     raise RuntimeError(f"copied package missing translate.py: {dst}")
+if not (dst / "__init__.py").exists():
+    raise RuntimeError(f"copied package missing __init__.py: {dst}")
 
-print(f"COPY_OK files={file_count} src={src} dst={dst}")
-'@ | Set-Content -Path $copyStageScriptPath -Encoding UTF8
+print(f"COPY_FROM_IMPORT src={src} dst={dst}")
+'@ | Set-Content -Path $copyFromImportScriptPath -Encoding UTF8
 
-    Invoke-Python @($copyStageScriptPath) @{
-        TST_STAGE_PKG = $stageArgosDir
-        TST_TARGET_PKG = $targetArgosDir
-    } | Out-Null
+    $copiedFromImport = $false
+    try {
+        Invoke-Python @($copyFromImportScriptPath) @{ TST_TARGET_PKG = $targetArgosDir } | Out-Null
+        $copiedFromImport = $true
+    }
+    catch {
+        Write-Step "Warning: copy from imported module failed: $($_.Exception.Message)"
+    }
 
-    $targetArgosTranslate = Join-Path $targetArgosDir "translate.py"
-    $targetArgosInit = Join-Path $targetArgosDir "__init__.py"
-    $targetArgosPackage = Join-Path $targetArgosDir "package.py"
+    $needWheelFallback = (-not $copiedFromImport) -or (-not (Test-Path $targetArgosTranslate)) -or (-not (Test-Path $targetArgosInit)) -or (-not (Test-Path $targetArgosPackage))
+    if ($needWheelFallback) {
+        Write-Step "Trying wheel extraction fallback for argostranslate..."
+        if (Test-Path $bootstrapWheelDir) {
+            Remove-Item -Recurse -Force $bootstrapWheelDir
+        }
+        New-Item -ItemType Directory -Force -Path $bootstrapWheelDir | Out-Null
+
+        $wheelFile = $null
+        try {
+            Invoke-Python @("-m", "pip", "download", "--no-deps", "--only-binary=:all:", "--dest", $bootstrapWheelDir, "argostranslate==1.9.6") | Out-Null
+        }
+        catch {
+            Write-Step "Warning: wheel download failed: $($_.Exception.Message)"
+        }
+
+        if (-not (Get-ChildItem -Path $bootstrapWheelDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue)) {
+            try {
+                Invoke-Python @("-m", "pip", "wheel", "--no-deps", "--wheel-dir", $bootstrapWheelDir, "argostranslate==1.9.6") | Out-Null
+            }
+            catch {
+                Write-Step "Warning: wheel build failed: $($_.Exception.Message)"
+            }
+        }
+
+        $wheelCandidate = Get-ChildItem -Path $bootstrapWheelDir -Filter "argostranslate-*.whl" -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($wheelCandidate) {
+            $wheelFile = $wheelCandidate.FullName
+        }
+
+        if ([string]::IsNullOrWhiteSpace($wheelFile)) {
+            throw "Wheel fallback unavailable: no argostranslate wheel in $bootstrapWheelDir"
+        }
+
+        $extractWheelScriptPath = Join-Path $workDir "extract_argostranslate_wheel.py"
+        @'
+import pathlib
+import shutil
+import sys
+import zipfile
+
+wheel = pathlib.Path(sys.argv[1]).resolve()
+target_site = pathlib.Path(sys.argv[2]).resolve()
+pkg_dir = target_site / "argostranslate"
+dist_infos = [p for p in target_site.glob("argostranslate-*.dist-info")]
+
+shutil.rmtree(pkg_dir, ignore_errors=True)
+for p in dist_infos:
+    shutil.rmtree(p, ignore_errors=True)
+
+with zipfile.ZipFile(wheel, "r") as zf:
+    for name in zf.namelist():
+        if name.startswith("argostranslate/") or name.startswith("argostranslate-") and ".dist-info/" in name:
+            zf.extract(name, target_site)
+
+if not (pkg_dir / "translate.py").exists():
+    raise RuntimeError(f"wheel extract missing translate.py: {pkg_dir}")
+if not (pkg_dir / "__init__.py").exists():
+    raise RuntimeError(f"wheel extract missing __init__.py: {pkg_dir}")
+if not (pkg_dir / "package.py").exists():
+    raise RuntimeError(f"wheel extract missing package.py: {pkg_dir}")
+
+print(f"WHEEL_EXTRACT_OK wheel={wheel} target={target_site}")
+'@ | Set-Content -Path $extractWheelScriptPath -Encoding UTF8
+
+        Invoke-Python @($extractWheelScriptPath, $wheelFile, $sitePackagesDir) | Out-Null
+    }
+
     if (-not (Test-Path $targetArgosTranslate)) {
         $debugList = ""
         try {
