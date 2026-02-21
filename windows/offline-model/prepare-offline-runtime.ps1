@@ -190,7 +190,7 @@ for source, target in pairs:
     try {
         $smokeOutput = Invoke-Python @(
             "-c",
-            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; print(en.get_translation(zh).translate('hello'))"
+            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; _ = en.get_translation(zh).translate('hello'); print('SMOKE_OK')"
         ) @{
             HOME = $offlineHome
             USERPROFILE = $offlineHome
@@ -201,8 +201,9 @@ for source, target in pairs:
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
 
-    if ([string]::IsNullOrWhiteSpace(($smokeOutput | Out-String).Trim())) {
-        throw "Offline runtime smoke test returned empty output."
+    $smokeText = ($smokeOutput | Out-String)
+    if (-not ($smokeText -match "SMOKE_OK")) {
+        throw "Offline runtime smoke test missing SMOKE_OK marker. Output: $smokeText"
     }
 
     Write-Step "Offline runtime ready: $OutDir"
