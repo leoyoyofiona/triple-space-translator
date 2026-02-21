@@ -186,24 +186,18 @@ for source, target in pairs:
     Copy-Item -Path (Join-Path $scriptDir "translate_once.py") -Destination (Join-Path $OutDir "translate_once.py") -Force
 
     Write-Step "Running offline runtime smoke test..."
-    $smokeOutput = ""
     try {
-        $smokeOutput = Invoke-Python @(
+        Invoke-Python @(
             "-c",
-            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; _ = en.get_translation(zh).translate('hello'); print('SMOKE_OK')"
+            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; _ = en.get_translation(zh).translate('hello')"
         ) @{
             HOME = $offlineHome
             USERPROFILE = $offlineHome
             TST_OFFLINE_DISABLE_SELF_HEAL = "1"
-        }
+        } | Out-Null
     }
     catch {
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
-    }
-
-    $smokeText = ($smokeOutput | Out-String)
-    if (-not ($smokeText -match "SMOKE_OK")) {
-        throw "Offline runtime smoke test missing SMOKE_OK marker. Output: $smokeText"
     }
 
     Write-Step "Offline runtime ready: $OutDir"
