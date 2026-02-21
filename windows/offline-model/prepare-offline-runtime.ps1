@@ -186,9 +186,12 @@ for source, target in pairs:
     Copy-Item -Path (Join-Path $scriptDir "translate_once.py") -Destination (Join-Path $OutDir "translate_once.py") -Force
 
     Write-Step "Running offline runtime smoke test..."
-    $smokeOutput = "hello" | & (Join-Path $pythonDir "python.exe") (Join-Path $OutDir "translate_once.py") --source en --target zh
-    if ($LASTEXITCODE -ne 0) {
-        throw "Offline runtime smoke test failed."
+    $smokeOutput = ""
+    try {
+        $smokeOutput = Invoke-Python @((Join-Path $OutDir "translate_once.py"), "--source", "en", "--target", "zh") @{ TST_OFFLINE_DISABLE_SELF_HEAL = "1" }
+    }
+    catch {
+        throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
     if ([string]::IsNullOrWhiteSpace($smokeOutput)) {
         throw "Offline runtime smoke test returned empty output."

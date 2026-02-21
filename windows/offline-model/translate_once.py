@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import importlib.util
 import os
 import pathlib
 import shutil
@@ -71,6 +72,10 @@ def ensure_argostranslate_available() -> None:
         import argostranslate.translate  # noqa: F401
         return
     except Exception as first_exc:
+        disable_self_heal = os.environ.get("TST_OFFLINE_DISABLE_SELF_HEAL", "").strip() == "1"
+        if disable_self_heal:
+            fail(f"argostranslate import failed (self-heal disabled): {first_exc}; sys.path={sys.path}")
+
         runtime_root = pathlib.Path(__file__).resolve().parent
         python_exe = runtime_root / "python" / "python.exe"
         wheelhouse = runtime_root / "wheelhouse"
@@ -78,8 +83,17 @@ def ensure_argostranslate_available() -> None:
         if not user_site:
             user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
 
+        if importlib.util.find_spec("pip") is None:
+            fail(
+                "argostranslate import failed and pip is unavailable for self-heal: "
+                f"{first_exc}; sys.path={sys.path}"
+            )
+
         if python_exe.exists() and wheelhouse.exists():
             pathlib.Path(user_site).mkdir(parents=True, exist_ok=True)
+            env = os.environ.copy()
+            env["PYTHONUTF8"] = "1"
+            env["PYTHONNOUSERSITE"] = "1"
             result = subprocess.run(
                 [
                     str(python_exe),
@@ -99,6 +113,7 @@ def ensure_argostranslate_available() -> None:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                env=env,
             )
             if result.returncode != 0:
                 fail(
