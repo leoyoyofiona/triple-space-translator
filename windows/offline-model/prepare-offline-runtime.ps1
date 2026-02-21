@@ -188,12 +188,20 @@ for source, target in pairs:
     Write-Step "Running offline runtime smoke test..."
     $smokeOutput = ""
     try {
-        $smokeOutput = Invoke-Python @((Join-Path $OutDir "translate_once.py"), "--source", "en", "--target", "zh") @{ TST_OFFLINE_DISABLE_SELF_HEAL = "1" }
+        $smokeOutput = Invoke-Python @(
+            "-c",
+            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; print(en.get_translation(zh).translate('hello'))"
+        ) @{
+            HOME = $offlineHome
+            USERPROFILE = $offlineHome
+            TST_OFFLINE_DISABLE_SELF_HEAL = "1"
+        }
     }
     catch {
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
-    if ([string]::IsNullOrWhiteSpace($smokeOutput)) {
+
+    if ([string]::IsNullOrWhiteSpace(($smokeOutput | Out-String).Trim())) {
         throw "Offline runtime smoke test returned empty output."
     }
 
