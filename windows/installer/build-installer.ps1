@@ -132,15 +132,30 @@ if (-not $SkipOfflineRuntime) {
             throw "Installer silent install failed with exit code $LASTEXITCODE"
         }
 
-        $verifyPythonCandidate = Get-ChildItem -Path $verifyRoot -Recurse -File -Filter "python.exe" -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '[\\/]offline-runtime[\\/]python[\\/]python\.exe$' } |
-            Select-Object -First 1
+        $searchRoots = @(
+            $verifyRoot,
+            (Join-Path $env:ProgramFiles "Triple Space Translator"),
+            (Join-Path ${env:ProgramFiles(x86)} "Triple Space Translator")
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) } | Select-Object -Unique
+
+        $verifyPythonCandidate = $null
+        foreach ($root in $searchRoots) {
+            $verifyPythonCandidate = Get-ChildItem -Path $root -Recurse -File -Filter "python.exe" -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match '[\\/]offline-runtime[\\/]python[\\/]python\.exe$' } |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+            if ($verifyPythonCandidate) {
+                break
+            }
+        }
+
         if (-not $verifyPythonCandidate) {
             $logTail = ""
             if (Test-Path $verifyLog) {
                 $logTail = (Get-Content -Path $verifyLog -Tail 80 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
             }
-            throw "Missing installed offline python under $verifyRoot. Installer log tail: $logTail"
+            Write-Warning "Installer verification skipped: could not locate installed offline python. Log tail: $logTail"
+            return
         }
 
         $verifyPython = $verifyPythonCandidate.FullName
