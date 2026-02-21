@@ -120,3 +120,55 @@ if (-not (Test-Path $expectedInstaller)) {
 
 Write-Host "Done. Installer output:" -ForegroundColor Green
 Get-ChildItem $setupOut | Select-Object FullName, Length, LastWriteTime
+
+if (-not $SkipOfflineRuntime) {
+    Write-Host "Verifying installer offline runtime by test install..." -ForegroundColor Cyan
+    $verifyRoot = Join-Path $env:TEMP ("tst-installer-verify-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        New-Item -ItemType Directory -Force -Path $verifyRoot | Out-Null
+        & $expectedInstaller "/VERYSILENT" "/SUPPRESSMSGBOXES" "/NORESTART" "/SP-" "/DIR=$verifyRoot"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installer silent install failed with exit code $LASTEXITCODE"
+        }
+
+        $verifyPython = Join-Path $verifyRoot "offline-runtime\python\python.exe"
+        $verifyScript = Join-Path $verifyRoot "offline-runtime\translate_once.py"
+        $verifySite = Join-Path $verifyRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
+        $verifyArchive = Join-Path $verifyRoot "offline-runtime\offline-site-packages.zip"
+        $verifyHome = Join-Path $verifyRoot "offline-home"
+
+        if (-not (Test-Path $verifyPython)) {
+            throw "Missing installed offline python: $verifyPython"
+        }
+        if (-not (Test-Path $verifyScript)) {
+            throw "Missing installed offline script: $verifyScript"
+        }
+        if (-not (Test-Path $verifySite) -and -not (Test-Path $verifyArchive)) {
+            throw "Installed offline runtime missing both argostranslate package and fallback archive."
+        }
+
+        New-Item -ItemType Directory -Force -Path $verifyHome | Out-Null
+        $env:TST_OFFLINE_DISABLE_SELF_HEAL = "1"
+        $env:HOME = $verifyHome
+        $env:USERPROFILE = $verifyHome
+        try {
+            $verifyOutput = "hello" | & $verifyPython $verifyScript --source en --target zh
+            if ($LASTEXITCODE -ne 0) {
+                throw "Installed offline translate smoke test failed with exit code $LASTEXITCODE"
+            }
+            if ([string]::IsNullOrWhiteSpace(($verifyOutput | Out-String).Trim())) {
+                throw "Installed offline translate smoke test returned empty output"
+            }
+        }
+        finally {
+            Remove-Item Env:TST_OFFLINE_DISABLE_SELF_HEAL -ErrorAction SilentlyContinue
+            Remove-Item Env:HOME -ErrorAction SilentlyContinue
+            Remove-Item Env:USERPROFILE -ErrorAction SilentlyContinue
+        }
+    }
+    finally {
+        if (Test-Path $verifyRoot) {
+            Remove-Item -Recurse -Force $verifyRoot -ErrorAction SilentlyContinue
+        }
+    }
+}
