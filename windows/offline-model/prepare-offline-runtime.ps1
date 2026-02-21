@@ -159,70 +159,57 @@ try {
         }
     }
 
-    Write-Step "Ensuring bundled argostranslate package files via robust Python copy..."
-    $copyArgosScriptPath = Join-Path $workDir "copy_argostranslate.py"
+    Write-Step "Ensuring bundled argostranslate package files via deterministic staged install..."
+    $stageDir = Join-Path $workDir "argostranslate-stage"
+    if (Test-Path $stageDir) {
+        Remove-Item -Recurse -Force $stageDir
+    }
+    New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+    Invoke-Python @("-m", "pip", "install", "--target", $stageDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
+
+    $stageArgosDir = Join-Path $stageDir "argostranslate"
+    $stageTranslate = Join-Path $stageArgosDir "translate.py"
+    if (-not (Test-Path $stageTranslate)) {
+        $stageTop = ""
+        try {
+            $stageTop = (Get-ChildItem -Path $stageDir -Name -ErrorAction SilentlyContinue | Select-Object -First 40) -join ", "
+        }
+        catch {
+            $stageTop = "<unavailable>"
+        }
+        throw "Staged argostranslate package missing translate.py: $stageTranslate; stage_top=$stageTop"
+    }
+
+    $targetArgosDir = Join-Path $sitePackagesDir "argostranslate"
+    $copyStageScriptPath = Join-Path $workDir "copy_argostranslate_stage.py"
     @'
-import importlib.util
 import os
 import pathlib
 import shutil
-import sys
 
-target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
-target_pkg = target_site / "argostranslate"
-spec = importlib.util.find_spec("argostranslate")
-if spec is None:
-    raise RuntimeError("argostranslate spec not found")
+src = pathlib.Path(os.environ["TST_STAGE_PKG"]).resolve()
+dst = pathlib.Path(os.environ["TST_TARGET_PKG"]).resolve()
 
-candidates = []
-if spec.submodule_search_locations:
-    candidates.extend(pathlib.Path(p).resolve() for p in spec.submodule_search_locations if p)
+if not (src / "translate.py").exists():
+    raise RuntimeError(f"stage package missing translate.py: {src}")
 
-origin = spec.origin or ""
-if origin:
-    op = pathlib.Path(origin).resolve()
-    if op.name.lower() == "__init__.py":
-        candidates.append(op.parent)
-    elif op.name.lower() == "argostranslate.py":
-        # Defensive fallback for unexpected module layout.
-        candidates.append(op.parent / "argostranslate")
+shutil.rmtree(dst, ignore_errors=True)
+shutil.copytree(src, dst)
 
-for entry in sys.path:
-    if not entry:
-        continue
-    p = pathlib.Path(entry).resolve() / "argostranslate"
-    candidates.append(p)
+file_count = sum(1 for p in dst.rglob("*") if p.is_file())
+if file_count == 0:
+    raise RuntimeError(f"copied package is empty: {dst}")
+if not (dst / "translate.py").exists():
+    raise RuntimeError(f"copied package missing translate.py: {dst}")
 
-seen = set()
-deduped = []
-for c in candidates:
-    key = str(c).lower()
-    if key in seen:
-        continue
-    seen.add(key)
-    deduped.append(c)
+print(f"COPY_OK files={file_count} src={src} dst={dst}")
+'@ | Set-Content -Path $copyStageScriptPath -Encoding UTF8
 
-source_pkg = None
-for c in deduped:
-    if c.exists() and (c / "translate.py").exists():
-        source_pkg = c
-        break
+    Invoke-Python @($copyStageScriptPath) @{
+        TST_STAGE_PKG = $stageArgosDir
+        TST_TARGET_PKG = $targetArgosDir
+    } | Out-Null
 
-if source_pkg is None:
-    raise RuntimeError(
-        "could not locate argostranslate package dir with translate.py; "
-        f"origin={origin}; candidates={[str(x) for x in deduped[:20]]}"
-    )
-
-shutil.rmtree(target_pkg, ignore_errors=True)
-shutil.copytree(source_pkg, target_pkg)
-print(f"SRC={source_pkg}")
-print(f"DST={target_pkg}")
-'@ | Set-Content -Path $copyArgosScriptPath -Encoding UTF8
-
-    Invoke-Python @($copyArgosScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir } | Out-Null
-
-    $targetArgosDir = Join-Path $sitePackagesDir "argostranslate"
     $targetArgosTranslate = Join-Path $targetArgosDir "translate.py"
     if (-not (Test-Path $targetArgosTranslate)) {
         $debugList = ""
