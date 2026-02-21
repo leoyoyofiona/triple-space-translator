@@ -133,6 +133,8 @@ try {
     # Install directly from index during build (CI has network), package ships with installed files for offline runtime use.
     # Embedded Python behaves most consistently when dependencies are under Lib\site-packages.
     Invoke-Python @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
+    # Ensure package files exist even when dependency resolver behaves unexpectedly.
+    Invoke-Python @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "--no-deps", "argostranslate==1.9.6") | Out-Null
 
     try {
         Invoke-Python @("-c", "import argostranslate;print('argostranslate_import_ok')") | Out-Null

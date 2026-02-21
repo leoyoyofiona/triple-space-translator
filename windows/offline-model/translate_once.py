@@ -83,6 +83,7 @@ def ensure_argostranslate_available() -> None:
         site_archive = runtime_root / "offline-site-packages.zip"
         bundled_site = runtime_root / "python" / "Lib" / "site-packages"
         bundled_argos = bundled_site / "argostranslate"
+        bundled_root_argos = runtime_root / "python" / "argostranslate"
         user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
         if not user_site:
             user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
@@ -99,6 +100,20 @@ def ensure_argostranslate_available() -> None:
                 return
             except Exception as bundled_copy_exc:
                 first_exc = RuntimeError(f"{first_exc}; bundled_copy={bundled_copy_exc}")
+
+        # Extra fallback: locate any packaged argostranslate folder under runtime/python and copy it.
+        if not bundled_argos.exists():
+            matches = list((runtime_root / "python").rglob("argostranslate/__init__.py"))
+            if matches:
+                try:
+                    source_pkg = matches[0].parent
+                    shutil.copytree(source_pkg, user_site_path / "argostranslate", dirs_exist_ok=True)
+                    if user_site not in sys.path:
+                        sys.path.insert(0, user_site)
+                    import argostranslate.translate  # noqa: F401
+                    return
+                except Exception as deep_copy_exc:
+                    first_exc = RuntimeError(f"{first_exc}; deep_copy={deep_copy_exc}")
 
         # Primary self-heal path: unpack bundled site-packages archive (works fully offline, no pip required).
         if site_archive.exists():
@@ -130,6 +145,7 @@ def ensure_argostranslate_available() -> None:
             fail(
                 "argostranslate import failed and pip is unavailable for self-heal: "
                 f"{first_exc}; bundled_site_exists={bundled_site.exists()}; bundled_argos_exists={bundled_argos.exists()}; "
+                f"bundled_root_argos_exists={bundled_root_argos.exists()}; "
                 f"archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
             )
 
