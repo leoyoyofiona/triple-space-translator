@@ -56,6 +56,8 @@ function Invoke-Python([string[]]$args, [hashtable]$extraEnv = @{}) {
     if (-not [string]::IsNullOrWhiteSpace($stdout)) {
         Write-Host $stdout
     }
+
+    return $stdout
 }
 
 try {
@@ -129,13 +131,20 @@ try {
     Write-Step "Installing offline engine dependencies into bundled runtime..."
     # Embedded Python behaves most consistently when dependencies are under Lib\site-packages.
     # Runtime still includes python root in PYTHONPATH for compatibility.
-    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6")
-    Invoke-Python @("-c", "import argostranslate,sys;print('argostranslate=',argostranslate.__version__);print('site=',sys.path)")
+    Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
 
     $moduleFile = ""
-    $moduleFile = (& (Join-Path $pythonDir "python.exe") -c "import argostranslate, pathlib; print(pathlib.Path(argostranslate.__file__).resolve())").Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($moduleFile)) {
-        throw "argostranslate import verification failed after install."
+    try {
+        $moduleFile = (Invoke-Python @("-c", "import argostranslate,pathlib;print(pathlib.Path(argostranslate.__file__).resolve())")).Trim()
+    }
+    catch {
+        Write-Step "Primary target import check failed, retrying install to python root..."
+        Invoke-Python @("-m", "pip", "install", "--no-index", "--find-links", $wheelhouseDir, "--target", $pythonDir, "--upgrade", "--force-reinstall", "--ignore-installed", "argostranslate==1.9.6") | Out-Null
+        $moduleFile = (Invoke-Python @("-c", "import argostranslate,pathlib;print(pathlib.Path(argostranslate.__file__).resolve())")).Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($moduleFile)) {
+        throw "argostranslate import verification returned empty module path."
     }
     $moduleFileFull = [System.IO.Path]::GetFullPath($moduleFile)
     $pythonDirFull = [System.IO.Path]::GetFullPath($pythonDir)
