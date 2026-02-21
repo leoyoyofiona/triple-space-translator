@@ -155,6 +155,19 @@ try {
         }
     }
 
+    # Ensure argostranslate is really loaded from bundled runtime, not any external path.
+    Invoke-Python @(
+        "-c",
+        "import argostranslate, pathlib, os; p=pathlib.Path(argostranslate.__file__).resolve(); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert str(p).lower().startswith(str(root).lower()), f'argostranslate outside runtime: {p}'; print(p)"
+    ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
+
+    $argosInit = Get-ChildItem -Path $pythonDir -Recurse -File -Filter "__init__.py" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '[\\/]argostranslate[\\/]__init__\.py$' } |
+        Select-Object -First 1
+    if (-not $argosInit) {
+        throw "argostranslate package files not found under bundled runtime: $pythonDir"
+    }
+
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
     try {
         Invoke-Python @("-m", "pip", "download", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null

@@ -126,20 +126,30 @@ if (-not $SkipOfflineRuntime) {
     $verifyRoot = Join-Path $env:TEMP ("tst-installer-verify-" + [Guid]::NewGuid().ToString("N"))
     try {
         New-Item -ItemType Directory -Force -Path $verifyRoot | Out-Null
-        & $expectedInstaller "/VERYSILENT" "/SUPPRESSMSGBOXES" "/NORESTART" "/SP-" "/DIR=$verifyRoot"
+        $verifyLog = Join-Path $verifyRoot "install.log"
+        & $expectedInstaller "/VERYSILENT" "/SUPPRESSMSGBOXES" "/NORESTART" "/SP-" "/DIR=$verifyRoot" "/LOG=$verifyLog"
         if ($LASTEXITCODE -ne 0) {
             throw "Installer silent install failed with exit code $LASTEXITCODE"
         }
 
-        $verifyPython = Join-Path $verifyRoot "offline-runtime\python\python.exe"
-        $verifyScript = Join-Path $verifyRoot "offline-runtime\translate_once.py"
-        $verifySite = Join-Path $verifyRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
-        $verifyArchive = Join-Path $verifyRoot "offline-runtime\offline-site-packages.zip"
+        $verifyPythonCandidate = Get-ChildItem -Path $verifyRoot -Recurse -File -Filter "python.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '[\\/]offline-runtime[\\/]python[\\/]python\.exe$' } |
+            Select-Object -First 1
+        if (-not $verifyPythonCandidate) {
+            $logTail = ""
+            if (Test-Path $verifyLog) {
+                $logTail = (Get-Content -Path $verifyLog -Tail 80 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
+            }
+            throw "Missing installed offline python under $verifyRoot. Installer log tail: $logTail"
+        }
+
+        $verifyPython = $verifyPythonCandidate.FullName
+        $verifyAppRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $verifyPython))
+        $verifyScript = Join-Path $verifyAppRoot "offline-runtime\translate_once.py"
+        $verifySite = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
+        $verifyArchive = Join-Path $verifyAppRoot "offline-runtime\offline-site-packages.zip"
         $verifyHome = Join-Path $verifyRoot "offline-home"
 
-        if (-not (Test-Path $verifyPython)) {
-            throw "Missing installed offline python: $verifyPython"
-        }
         if (-not (Test-Path $verifyScript)) {
             throw "Missing installed offline script: $verifyScript"
         }
