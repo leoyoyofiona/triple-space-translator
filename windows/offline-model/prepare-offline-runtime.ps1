@@ -191,7 +191,7 @@ try {
     }
 
     if (-not $wheelOk) {
-        throw "Missing argostranslate wheel in wheelhouse after download/build attempts: $wheelhouseDir"
+        Write-Step "Warning: wheelhouse unavailable; runtime will rely on bundled site-packages self-heal."
     }
 
     if (-not $SkipModelInstall) {
