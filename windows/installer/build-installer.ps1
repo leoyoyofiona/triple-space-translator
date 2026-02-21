@@ -161,14 +161,15 @@ if (-not $SkipOfflineRuntime) {
         $verifyPython = $verifyPythonCandidate.FullName
         $verifyAppRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $verifyPython))
         $verifyScript = Join-Path $verifyAppRoot "offline-runtime\translate_once.py"
-        $verifySite = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
+        $verifySiteInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
+        $verifySiteTranslate = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\translate.py"
         $verifyArchive = Join-Path $verifyAppRoot "offline-runtime\offline-site-packages.zip"
         $verifyHome = Join-Path $verifyRoot "offline-home"
 
         if (-not (Test-Path $verifyScript)) {
             throw "Missing installed offline script: $verifyScript"
         }
-        if (-not (Test-Path $verifySite) -and -not (Test-Path $verifyArchive)) {
+        if (-not (Test-Path $verifySiteInit) -and -not (Test-Path $verifySiteTranslate) -and -not (Test-Path $verifyArchive)) {
             throw "Installed offline runtime missing both argostranslate package and fallback archive."
         }
 

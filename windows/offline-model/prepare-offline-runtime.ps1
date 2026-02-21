@@ -159,20 +159,85 @@ try {
         }
     }
 
+    Write-Step "Ensuring bundled argostranslate package files via robust Python copy..."
+    $copyArgosScriptPath = Join-Path $workDir "copy_argostranslate.py"
+    @'
+import importlib.util
+import os
+import pathlib
+import shutil
+import sys
+
+target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
+target_pkg = target_site / "argostranslate"
+spec = importlib.util.find_spec("argostranslate")
+if spec is None:
+    raise RuntimeError("argostranslate spec not found")
+
+candidates = []
+if spec.submodule_search_locations:
+    candidates.extend(pathlib.Path(p).resolve() for p in spec.submodule_search_locations if p)
+
+origin = spec.origin or ""
+if origin:
+    op = pathlib.Path(origin).resolve()
+    if op.name.lower() == "__init__.py":
+        candidates.append(op.parent)
+    elif op.name.lower() == "argostranslate.py":
+        # Defensive fallback for unexpected module layout.
+        candidates.append(op.parent / "argostranslate")
+
+for entry in sys.path:
+    if not entry:
+        continue
+    p = pathlib.Path(entry).resolve() / "argostranslate"
+    candidates.append(p)
+
+seen = set()
+deduped = []
+for c in candidates:
+    key = str(c).lower()
+    if key in seen:
+        continue
+    seen.add(key)
+    deduped.append(c)
+
+source_pkg = None
+for c in deduped:
+    if c.exists() and (c / "translate.py").exists():
+        source_pkg = c
+        break
+
+if source_pkg is None:
+    raise RuntimeError(
+        "could not locate argostranslate package dir with translate.py; "
+        f"origin={origin}; candidates={[str(x) for x in deduped[:20]]}"
+    )
+
+shutil.rmtree(target_pkg, ignore_errors=True)
+shutil.copytree(source_pkg, target_pkg)
+print(f"SRC={source_pkg}")
+print(f"DST={target_pkg}")
+'@ | Set-Content -Path $copyArgosScriptPath -Encoding UTF8
+
+    Invoke-Python @($copyArgosScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir } | Out-Null
+
     $targetArgosDir = Join-Path $sitePackagesDir "argostranslate"
-    $rootArgosDir = Join-Path $pythonDir "argostranslate"
-    if (-not (Test-Path $targetArgosDir) -and (Test-Path $rootArgosDir)) {
-        Write-Step "Copying argostranslate package from python root into bundled site-packages..."
-        New-Item -ItemType Directory -Force -Path $targetArgosDir | Out-Null
-        Copy-Item -Path (Join-Path $rootArgosDir "*") -Destination $targetArgosDir -Recurse -Force
-    }
-    if (-not (Test-Path (Join-Path $targetArgosDir "__init__.py"))) {
-        throw "Bundled argostranslate package missing __init__.py after copy: $targetArgosDir"
+    $targetArgosTranslate = Join-Path $targetArgosDir "translate.py"
+    if (-not (Test-Path $targetArgosTranslate)) {
+        $debugList = ""
+        try {
+            $debugList = (Get-ChildItem -Path $targetArgosDir -Name -ErrorAction SilentlyContinue | Select-Object -First 30) -join ", "
+        }
+        catch {
+            $debugList = "<unavailable>"
+        }
+        throw "Bundled argostranslate package missing translate.py after copy: $targetArgosTranslate; contents=$debugList"
     }
 
     Invoke-Python @(
         "-c",
-        "import argostranslate, pathlib, os; p=pathlib.Path(argostranslate.__file__).resolve(); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert p.exists(), f'module path missing: {p}'; assert str(p).lower().startswith(str(root).lower()), f'argostranslate outside runtime: {p}'"
+        "import importlib.util, pathlib, os; spec=importlib.util.find_spec('argostranslate'); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert spec is not None, 'argostranslate spec missing'; c=[]; origin=spec.origin or ''; c.extend([pathlib.Path(origin).resolve()] if origin else []); c.extend(pathlib.Path(p).resolve() for p in (spec.submodule_search_locations or [])); assert c, 'argostranslate has no origin or package locations'; ok=any(str(p).lower().startswith(str(root).lower()) for p in c); assert ok, f'argostranslate outside runtime: {c}'"
     ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
