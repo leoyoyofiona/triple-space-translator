@@ -211,6 +211,8 @@ print(f"COPY_OK files={file_count} src={src} dst={dst}")
     } | Out-Null
 
     $targetArgosTranslate = Join-Path $targetArgosDir "translate.py"
+    $targetArgosInit = Join-Path $targetArgosDir "__init__.py"
+    $targetArgosPackage = Join-Path $targetArgosDir "package.py"
     if (-not (Test-Path $targetArgosTranslate)) {
         $debugList = ""
         try {
@@ -220,6 +222,12 @@ print(f"COPY_OK files={file_count} src={src} dst={dst}")
             $debugList = "<unavailable>"
         }
         throw "Bundled argostranslate package missing translate.py after copy: $targetArgosTranslate; contents=$debugList"
+    }
+    if (-not (Test-Path $targetArgosInit)) {
+        throw "Bundled argostranslate package missing __init__.py after copy: $targetArgosInit"
+    }
+    if (-not (Test-Path $targetArgosPackage)) {
+        throw "Bundled argostranslate package missing package.py after copy: $targetArgosPackage"
     }
 
     Invoke-Python @(
@@ -296,7 +304,7 @@ for source, target in pairs:
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
 
-    Write-Step "Packing site-packages fallback archive (best effort)..."
+    Write-Step "Packing site-packages fallback archive..."
     $packScriptPath = Join-Path $workDir "pack_site_packages.py"
     @'
 import pathlib
@@ -317,14 +325,51 @@ with zipfile.ZipFile(dst, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
 print(dst)
 '@ | Set-Content -Path $packScriptPath -Encoding UTF8
 
+    $archivePacked = $false
     try {
         Invoke-Python @($packScriptPath, $sitePackagesDir, $sitePackagesArchive) | Out-Null
-        if (-not (Test-Path $sitePackagesArchive)) {
-            Write-Step "Warning: fallback archive not generated, will rely on bundled site-packages at runtime."
+        if (Test-Path $sitePackagesArchive) {
+            $archivePacked = $true
         }
     }
     catch {
-        Write-Step "Warning: failed to pack fallback archive: $($_.Exception.Message)"
+        Write-Step "Warning: python zip pack failed: $($_.Exception.Message)"
+    }
+
+    if (-not $archivePacked) {
+        Write-Step "Trying .NET fallback for site-packages archive..."
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            if (Test-Path $sitePackagesArchive) {
+                Remove-Item -Force $sitePackagesArchive
+            }
+            [System.IO.Compression.ZipFile]::CreateFromDirectory(
+                $sitePackagesDir,
+                $sitePackagesArchive,
+                [System.IO.Compression.CompressionLevel]::Optimal,
+                $false
+            )
+            if (Test-Path $sitePackagesArchive) {
+                $archivePacked = $true
+            }
+        }
+        catch {
+            Write-Step "Warning: .NET zip pack failed: $($_.Exception.Message)"
+        }
+    }
+
+    if (-not $archivePacked) {
+        throw "Failed to generate fallback archive: $sitePackagesArchive"
+    }
+
+    $archiveSize = (Get-Item -Path $sitePackagesArchive).Length
+    Write-Step "Fallback archive ready: $sitePackagesArchive ($archiveSize bytes)"
+
+    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $sitePackagesArchive)
+    foreach ($f in $keyFiles) {
+        if (-not (Test-Path $f)) {
+            throw "Offline runtime key file missing at finalize stage: $f"
+        }
     }
 
     Write-Step "Offline runtime ready: $OutDir"

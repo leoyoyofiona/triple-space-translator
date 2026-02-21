@@ -154,8 +154,8 @@ if (-not $SkipOfflineRuntime) {
             if (Test-Path $verifyLog) {
                 $logTail = (Get-Content -Path $verifyLog -Tail 80 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
             }
-            Write-Warning "Installer verification skipped: could not locate installed offline python. Log tail: $logTail"
-            return
+            $rootsText = ($searchRoots -join "; ")
+            throw "Installer verification failed: could not locate installed offline python. search_roots=$rootsText; log_tail=$logTail"
         }
 
         $verifyPython = $verifyPythonCandidate.FullName
