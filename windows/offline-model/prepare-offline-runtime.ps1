@@ -625,6 +625,46 @@ _ = translation.translate("hello")
         throw "Offline runtime smoke test failed: $($_.Exception.Message)"
     }
 
+    Write-Step "Ensuring core modules exist in bundled site-packages..."
+    $corePackages = @("ctranslate2", "sentencepiece", "sacremoses", "packaging")
+    foreach ($pkg in $corePackages) {
+        $siteDir = Join-Path $sitePackagesDir $pkg
+        $rootDir = Join-Path $pythonDir $pkg
+        $needMirror = -not (Test-Path $siteDir)
+        if (-not $needMirror -and ($pkg -eq "ctranslate2")) {
+            $siteExtNow = Get-ChildItem -Path $siteDir -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            $rootExtNow = Get-ChildItem -Path $rootDir -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $siteExtNow -and $rootExtNow) {
+                $needMirror = $true
+            }
+        }
+        if (-not $needMirror -and ($pkg -eq "sentencepiece")) {
+            $siteExtNow = Get-ChildItem -Path $siteDir -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            $rootExtNow = Get-ChildItem -Path $rootDir -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $siteExtNow -and $rootExtNow) {
+                $needMirror = $true
+            }
+        }
+        if ($needMirror -and (Test-Path $rootDir)) {
+            Copy-Item -Path $rootDir -Destination $sitePackagesDir -Recurse -Force
+            Write-Step "Mirrored $pkg from python root to site-packages."
+        }
+    }
+
+    $ctranslateInit = Join-Path $sitePackagesDir "ctranslate2\__init__.py"
+    $sentencepieceInit = Join-Path $sitePackagesDir "sentencepiece\__init__.py"
+    $sacremosesInit = Join-Path $sitePackagesDir "sacremoses\__init__.py"
+    $packagingInit = Join-Path $sitePackagesDir "packaging\__init__.py"
+    $ctranslateExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $sentencepieceExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    $ctranslateRootInit = Join-Path $pythonDir "ctranslate2\__init__.py"
+    $sentencepieceRootInit = Join-Path $pythonDir "sentencepiece\__init__.py"
+    $sacremosesRootInit = Join-Path $pythonDir "sacremoses\__init__.py"
+    $packagingRootInit = Join-Path $pythonDir "packaging\__init__.py"
+    $ctranslateRootExt = Get-ChildItem -Path (Join-Path $pythonDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $sentencepieceRootExt = Get-ChildItem -Path (Join-Path $pythonDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
     Write-Step "Packing site-packages fallback archive..."
     $packScriptPath = Join-Path $workDir "pack_site_packages.py"
     @'
@@ -686,39 +726,50 @@ print(dst)
     $archiveSize = (Get-Item -Path $sitePackagesArchive).Length
     Write-Step "Fallback archive ready: $sitePackagesArchive ($archiveSize bytes)"
 
-    $ctranslateInit = Join-Path $sitePackagesDir "ctranslate2\__init__.py"
-    $sentencepieceInit = Join-Path $sitePackagesDir "sentencepiece\__init__.py"
-    $sacremosesInit = Join-Path $sitePackagesDir "sacremoses\__init__.py"
-    $packagingInit = Join-Path $sitePackagesDir "packaging\__init__.py"
-    $ctranslateExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    $sentencepieceExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
     $keyFiles = @(
         $targetArgosInit,
         $targetArgosTranslate,
         $targetArgosPackage,
-        $ctranslateInit,
-        $sentencepieceInit,
-        $sacremosesInit,
-        $packagingInit,
         $sitePackagesArchive
     )
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
             $siteTop = ""
+            $rootTop = ""
             try {
                 $siteTop = (Get-ChildItem -Path $sitePackagesDir -Name -ErrorAction SilentlyContinue | Select-Object -First 80) -join ", "
             }
             catch {
                 $siteTop = "<unavailable>"
             }
-            throw "Offline runtime key file missing at finalize stage: $f; site_top=$siteTop"
+            try {
+                $rootTop = (Get-ChildItem -Path $pythonDir -Name -ErrorAction SilentlyContinue | Select-Object -First 80) -join ", "
+            }
+            catch {
+                $rootTop = "<unavailable>"
+            }
+            throw "Offline runtime key file missing at finalize stage: $f; site_top=$siteTop; root_top=$rootTop"
         }
     }
-    if (-not $ctranslateExt) {
-        throw "Offline runtime key file missing at finalize stage: ctranslate2\\_ext*.pyd under $sitePackagesDir\\ctranslate2"
+
+    if (-not (Test-Path $ctranslateInit) -and -not (Test-Path $ctranslateRootInit)) {
+        throw "Offline runtime key file missing at finalize stage: ctranslate2\\__init__.py (site and root both missing)"
     }
-    if (-not $sentencepieceExt) {
-        throw "Offline runtime key file missing at finalize stage: sentencepiece\\_sentencepiece*.pyd under $sitePackagesDir\\sentencepiece"
+    if (-not (Test-Path $sentencepieceInit) -and -not (Test-Path $sentencepieceRootInit)) {
+        throw "Offline runtime key file missing at finalize stage: sentencepiece\\__init__.py (site and root both missing)"
+    }
+    if (-not (Test-Path $sacremosesInit) -and -not (Test-Path $sacremosesRootInit)) {
+        throw "Offline runtime key file missing at finalize stage: sacremoses\\__init__.py (site and root both missing)"
+    }
+    if (-not (Test-Path $packagingInit) -and -not (Test-Path $packagingRootInit)) {
+        throw "Offline runtime key file missing at finalize stage: packaging\\__init__.py (site and root both missing)"
+    }
+
+    if (-not $ctranslateExt -and -not $ctranslateRootExt) {
+        throw "Offline runtime key file missing at finalize stage: ctranslate2\\_ext*.pyd (site and root both missing)"
+    }
+    if (-not $sentencepieceExt -and -not $sentencepieceRootExt) {
+        throw "Offline runtime key file missing at finalize stage: sentencepiece\\_sentencepiece*.pyd (site and root both missing)"
     }
 
     $finalVerifyCoreScriptPath = Join-Path $workDir "verify_offline_core_final.py"
