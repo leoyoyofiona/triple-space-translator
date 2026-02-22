@@ -93,7 +93,7 @@ function Download-WheelFromPyPI([string]$package, [string]$version, [string]$des
     $wheelPath = Join-Path $destDir $wheelName
     Invoke-WebRequest -Uri $wheelUrl -OutFile $wheelPath
     if (-not (Test-Path $wheelPath)) {
-        throw "Wheel download failed for $package==$version: $wheelPath"
+        throw "Wheel download failed for ${package}==${version}: $wheelPath"
     }
 
     return $wheelPath
