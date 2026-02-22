@@ -497,11 +497,18 @@ print(dst)
     $archiveSize = (Get-Item -Path $sitePackagesArchive).Length
     Write-Step "Fallback archive ready: $sitePackagesArchive ($archiveSize bytes)"
 
-    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $sitePackagesArchive)
+    $ct2Dir = Join-Path $sitePackagesDir "ctranslate2"
+    $ct2Init = Join-Path $ct2Dir "__init__.py"
+    $ct2PydExists = (Get-ChildItem -Path $ct2Dir -Filter "*.pyd" -ErrorAction SilentlyContinue | Select-Object -First 1) -ne $null
+    $sentencepieceInit = Join-Path (Join-Path $sitePackagesDir "sentencepiece") "__init__.py"
+    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $ct2Init, $sentencepieceInit, $sitePackagesArchive)
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
             throw "Offline runtime key file missing at finalize stage: $f"
         }
+    }
+    if (-not $ct2PydExists) {
+        throw "Offline runtime key file missing at finalize stage: $ct2Dir\\*.pyd"
     }
 
     Write-Step "Offline runtime ready: $OutDir"

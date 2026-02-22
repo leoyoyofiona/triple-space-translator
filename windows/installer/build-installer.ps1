@@ -167,6 +167,8 @@ if (-not $SkipOfflineRuntime) {
         $verifyScript = Join-Path $verifyAppRoot "offline-runtime\translate_once.py"
         $verifySiteInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
         $verifySiteTranslate = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\translate.py"
+        $verifyCt2Init = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2\__init__.py"
+        $verifyCt2Pyd = Get-ChildItem -Path (Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
         $verifyArchive = Join-Path $verifyAppRoot "offline-runtime\offline-site-packages.zip"
         $verifyHome = Join-Path $verifyRoot "offline-home"
 
@@ -175,6 +177,9 @@ if (-not $SkipOfflineRuntime) {
         }
         if (-not (Test-Path $verifySiteInit) -and -not (Test-Path $verifySiteTranslate) -and -not (Test-Path $verifyArchive)) {
             throw "Installed offline runtime missing both argostranslate package and fallback archive."
+        }
+        if (-not (Test-Path $verifyCt2Init) -or -not $verifyCt2Pyd) {
+            throw "Installed offline runtime missing ctranslate2 package files."
         }
 
         New-Item -ItemType Directory -Force -Path $verifyHome | Out-Null
