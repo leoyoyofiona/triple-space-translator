@@ -166,40 +166,12 @@ try {
     $targetArgosPackage = Join-Path $targetArgosDir "package.py"
     $bootstrapWheelDir = Join-Path $workDir "bootstrap-wheelhouse"
 
-    $copyFromImportScriptPath = Join-Path $workDir "copy_argostranslate_from_import.py"
-    @'
-import os
-import pathlib
-import shutil
-import argostranslate.translate as tr
-
-src = pathlib.Path(tr.__file__).resolve().parent
-dst = pathlib.Path(os.environ["TST_TARGET_PKG"]).resolve()
-
-if not (src / "translate.py").exists():
-    raise RuntimeError(f"source package missing translate.py: {src}")
-
-shutil.rmtree(dst, ignore_errors=True)
-shutil.copytree(src, dst)
-
-if not (dst / "translate.py").exists():
-    raise RuntimeError(f"copied package missing translate.py: {dst}")
-if not (dst / "__init__.py").exists():
-    raise RuntimeError(f"copied package missing __init__.py: {dst}")
-
-print(f"COPY_FROM_IMPORT src={src} dst={dst}")
-'@ | Set-Content -Path $copyFromImportScriptPath -Encoding UTF8
-
-    $copiedFromImport = $false
-    try {
-        Invoke-Python @($copyFromImportScriptPath) @{ TST_TARGET_PKG = $targetArgosDir } | Out-Null
-        $copiedFromImport = $true
-    }
-    catch {
-        Write-Step "Warning: copy from imported module failed: $($_.Exception.Message)"
+    $hasTargetPackage = (Test-Path $targetArgosTranslate) -and (Test-Path $targetArgosInit) -and (Test-Path $targetArgosPackage)
+    if ($hasTargetPackage) {
+        Write-Step "argostranslate already present in bundled site-packages (from pip target install)."
     }
 
-    $needWheelFallback = (-not $copiedFromImport) -or (-not (Test-Path $targetArgosTranslate)) -or (-not (Test-Path $targetArgosInit)) -or (-not (Test-Path $targetArgosPackage))
+    $needWheelFallback = -not $hasTargetPackage
     if ($needWheelFallback) {
         Write-Step "Trying wheel extraction fallback for argostranslate..."
         if (Test-Path $bootstrapWheelDir) {
@@ -291,6 +263,9 @@ print(f"COPY_FROM_IMPORT src={src} dst={dst}")
         $sourceArgosDir = Split-Path -Parent $sourceTranslate.FullName
         if (Test-Path $targetArgosDir) {
             Remove-Item -Recurse -Force $targetArgosDir
+        }
+        Get-ChildItem -Path $sitePackagesDir -Directory -Filter "argostranslate-*.dist-info" -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
         }
         Copy-Item -Path $sourceArgosDir -Destination $sitePackagesDir -Recurse -Force
         Write-Step "WHEEL_EXTRACT_OK source=$sourceArgosDir target=$targetArgosDir"
