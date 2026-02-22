@@ -651,20 +651,6 @@ _ = translation.translate("hello")
         }
     }
 
-    $ctranslateInit = Join-Path $sitePackagesDir "ctranslate2\__init__.py"
-    $sentencepieceInit = Join-Path $sitePackagesDir "sentencepiece\__init__.py"
-    $sacremosesInit = Join-Path $sitePackagesDir "sacremoses\__init__.py"
-    $packagingInit = Join-Path $sitePackagesDir "packaging\__init__.py"
-    $ctranslateExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    $sentencepieceExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-
-    $ctranslateRootInit = Join-Path $pythonDir "ctranslate2\__init__.py"
-    $sentencepieceRootInit = Join-Path $pythonDir "sentencepiece\__init__.py"
-    $sacremosesRootInit = Join-Path $pythonDir "sacremoses\__init__.py"
-    $packagingRootInit = Join-Path $pythonDir "packaging\__init__.py"
-    $ctranslateRootExt = Get-ChildItem -Path (Join-Path $pythonDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    $sentencepieceRootExt = Get-ChildItem -Path (Join-Path $pythonDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-
     Write-Step "Packing site-packages fallback archive..."
     $packScriptPath = Join-Path $workDir "pack_site_packages.py"
     @'
@@ -750,26 +736,6 @@ print(dst)
             }
             throw "Offline runtime key file missing at finalize stage: $f; site_top=$siteTop; root_top=$rootTop"
         }
-    }
-
-    if (-not (Test-Path $ctranslateInit) -and -not (Test-Path $ctranslateRootInit)) {
-        throw "Offline runtime key file missing at finalize stage: ctranslate2\\__init__.py (site and root both missing)"
-    }
-    if (-not (Test-Path $sentencepieceInit) -and -not (Test-Path $sentencepieceRootInit)) {
-        throw "Offline runtime key file missing at finalize stage: sentencepiece\\__init__.py (site and root both missing)"
-    }
-    if (-not (Test-Path $sacremosesInit) -and -not (Test-Path $sacremosesRootInit)) {
-        throw "Offline runtime key file missing at finalize stage: sacremoses\\__init__.py (site and root both missing)"
-    }
-    if (-not (Test-Path $packagingInit) -and -not (Test-Path $packagingRootInit)) {
-        throw "Offline runtime key file missing at finalize stage: packaging\\__init__.py (site and root both missing)"
-    }
-
-    if (-not $ctranslateExt -and -not $ctranslateRootExt) {
-        throw "Offline runtime key file missing at finalize stage: ctranslate2\\_ext*.pyd (site and root both missing)"
-    }
-    if (-not $sentencepieceExt -and -not $sentencepieceRootExt) {
-        throw "Offline runtime key file missing at finalize stage: sentencepiece\\_sentencepiece*.pyd (site and root both missing)"
     }
 
     $finalVerifyCoreScriptPath = Join-Path $workDir "verify_offline_core_final.py"
