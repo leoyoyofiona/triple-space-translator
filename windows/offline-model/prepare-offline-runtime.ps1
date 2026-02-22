@@ -314,7 +314,7 @@ try {
             Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $coreBootstrapWheelDir, $spec) | Out-Null
         }
         catch {
-            Write-Step "Warning: core binary wheel download failed for $spec: $($_.Exception.Message)"
+            Write-Step "Warning: core binary wheel download failed for ${spec}: $($_.Exception.Message)"
         }
     }
 
