@@ -269,7 +269,9 @@ print(f"COPY_FROM_IMPORT src={src} dst={dst}")
             Remove-Item -Recurse -Force $wheelExtractDir
         }
         New-Item -ItemType Directory -Force -Path $wheelExtractDir | Out-Null
-        Expand-Archive -Path $wheelFile -DestinationPath $wheelExtractDir -Force
+        $wheelAsZip = Join-Path $workDir "argostranslate-wheel.zip"
+        Copy-Item -Path $wheelFile -Destination $wheelAsZip -Force
+        Expand-Archive -Path $wheelAsZip -DestinationPath $wheelExtractDir -Force
 
         $sourceTranslate = Get-ChildItem -Path $wheelExtractDir -Recurse -File -Filter "translate.py" -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match '[\\/]argostranslate[\\/]translate\.py$' } |
