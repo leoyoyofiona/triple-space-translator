@@ -263,38 +263,35 @@ print(f"COPY_FROM_IMPORT src={src} dst={dst}")
             throw "Wheel fallback unavailable: no argostranslate wheel in $bootstrapWheelDir; files=$wheelDirList"
         }
 
-        $extractWheelScriptPath = Join-Path $workDir "extract_argostranslate_wheel.py"
-        @'
-import pathlib
-import shutil
-import sys
-import zipfile
+        Write-Step "Wheel selected: $wheelFile"
+        $wheelExtractDir = Join-Path $workDir "wheel-extract"
+        if (Test-Path $wheelExtractDir) {
+            Remove-Item -Recurse -Force $wheelExtractDir
+        }
+        New-Item -ItemType Directory -Force -Path $wheelExtractDir | Out-Null
+        Expand-Archive -Path $wheelFile -DestinationPath $wheelExtractDir -Force
 
-wheel = pathlib.Path(sys.argv[1]).resolve()
-target_site = pathlib.Path(sys.argv[2]).resolve()
-pkg_dir = target_site / "argostranslate"
-dist_infos = [p for p in target_site.glob("argostranslate-*.dist-info")]
+        $sourceTranslate = Get-ChildItem -Path $wheelExtractDir -Recurse -File -Filter "translate.py" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '[\\/]argostranslate[\\/]translate\.py$' } |
+            Select-Object -First 1
 
-shutil.rmtree(pkg_dir, ignore_errors=True)
-for p in dist_infos:
-    shutil.rmtree(p, ignore_errors=True)
+        if (-not $sourceTranslate) {
+            $wheelTop = ""
+            try {
+                $wheelTop = (Get-ChildItem -Path $wheelExtractDir -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 50 -ExpandProperty FullName) -join "; "
+            }
+            catch {
+                $wheelTop = "<unavailable>"
+            }
+            throw "Wheel extraction failed: translate.py not found under argostranslate; wheel=$wheelFile; extracted_files=$wheelTop"
+        }
 
-with zipfile.ZipFile(wheel, "r") as zf:
-    for name in zf.namelist():
-        if name.startswith("argostranslate/") or name.startswith("argostranslate-") and ".dist-info/" in name:
-            zf.extract(name, target_site)
-
-if not (pkg_dir / "translate.py").exists():
-    raise RuntimeError(f"wheel extract missing translate.py: {pkg_dir}")
-if not (pkg_dir / "__init__.py").exists():
-    raise RuntimeError(f"wheel extract missing __init__.py: {pkg_dir}")
-if not (pkg_dir / "package.py").exists():
-    raise RuntimeError(f"wheel extract missing package.py: {pkg_dir}")
-
-print(f"WHEEL_EXTRACT_OK wheel={wheel} target={target_site}")
-'@ | Set-Content -Path $extractWheelScriptPath -Encoding UTF8
-
-        Invoke-Python @($extractWheelScriptPath, $wheelFile, $sitePackagesDir) | Out-Null
+        $sourceArgosDir = Split-Path -Parent $sourceTranslate.FullName
+        if (Test-Path $targetArgosDir) {
+            Remove-Item -Recurse -Force $targetArgosDir
+        }
+        Copy-Item -Path $sourceArgosDir -Destination $sitePackagesDir -Recurse -Force
+        Write-Step "WHEEL_EXTRACT_OK source=$sourceArgosDir target=$targetArgosDir"
     }
 
     if (-not (Test-Path $targetArgosTranslate)) {
