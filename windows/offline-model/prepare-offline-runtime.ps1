@@ -62,6 +62,43 @@ function Invoke-Python([string[]]$args, [hashtable]$extraEnv = @{}) {
     return $stdout
 }
 
+function Download-WheelFromPyPI([string]$package, [string]$version, [string]$destDir, [string[]]$preferredPatterns) {
+    $jsonPath = Join-Path $workDir "$package-$version.json"
+    $jsonUrl = "https://pypi.org/pypi/$package/$version/json"
+    Invoke-WebRequest -Uri $jsonUrl -OutFile $jsonPath
+
+    $meta = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
+    $urls = @($meta.urls | Where-Object { $_.packagetype -eq "bdist_wheel" })
+    if (-not $urls -or $urls.Count -eq 0) {
+        throw "No wheel URLs found in PyPI metadata for $package==$version"
+    }
+
+    $selected = $null
+    foreach ($pattern in $preferredPatterns) {
+        $selected = $urls | Where-Object { $_.filename -like $pattern } | Select-Object -First 1
+        if ($selected) {
+            break
+        }
+    }
+
+    if (-not $selected) {
+        $selected = $urls | Select-Object -First 1
+    }
+    if (-not $selected) {
+        throw "Failed to select wheel URL for $package==$version"
+    }
+
+    $wheelUrl = [string]$selected.url
+    $wheelName = Split-Path $wheelUrl -Leaf
+    $wheelPath = Join-Path $destDir $wheelName
+    Invoke-WebRequest -Uri $wheelUrl -OutFile $wheelPath
+    if (-not (Test-Path $wheelPath)) {
+        throw "Wheel download failed for $package==$version: $wheelPath"
+    }
+
+    return $wheelPath
+}
+
 try {
     New-Item -ItemType Directory -Force -Path $workDir | Out-Null
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -305,16 +342,41 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $coreBootstrapWheelDir | Out-Null
 
-    $coreBinarySpecs = @(
-        "ctranslate2==4.7.1",
-        "sentencepiece==0.2.0"
+    $coreBinaryTargets = @(
+        @{
+            Name = "ctranslate2"
+            Version = "4.7.1"
+            PreferredPatterns = @("ctranslate2-*-cp311-cp311-win_amd64.whl", "ctranslate2-*-cp311-*-win_amd64.whl")
+        },
+        @{
+            Name = "sentencepiece"
+            Version = "0.2.0"
+            PreferredPatterns = @("sentencepiece-*-cp311-cp311-win_amd64.whl", "sentencepiece-*-cp311-*-win_amd64.whl")
+        }
     )
-    foreach ($spec in $coreBinarySpecs) {
+    foreach ($target in $coreBinaryTargets) {
+        $name = [string]$target.Name
+        $version = [string]$target.Version
+        $spec = "$name==$version"
+        $pattern = "$name-*.whl"
         try {
             Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $coreBootstrapWheelDir, $spec) | Out-Null
         }
         catch {
             Write-Step "Warning: core binary wheel download failed for ${spec}: $($_.Exception.Message)"
+        }
+
+        $wheelFound = Get-ChildItem -Path $coreBootstrapWheelDir -Filter $pattern -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if (-not $wheelFound) {
+            try {
+                $downloaded = Download-WheelFromPyPI -package $name -version $version -destDir $coreBootstrapWheelDir -preferredPatterns $target.PreferredPatterns
+                Write-Step "Downloaded ${name} wheel from PyPI fallback: $downloaded"
+            }
+            catch {
+                Write-Step "Warning: direct PyPI wheel download failed for ${spec}: $($_.Exception.Message)"
+            }
         }
     }
 
