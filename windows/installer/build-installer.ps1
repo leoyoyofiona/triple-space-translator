@@ -167,6 +167,10 @@ if (-not $SkipOfflineRuntime) {
         $verifyScript = Join-Path $verifyAppRoot "offline-runtime\translate_once.py"
         $verifySiteInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
         $verifySiteTranslate = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\translate.py"
+        $verifyCtranslateInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2\__init__.py"
+        $verifySentencepieceInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\sentencepiece\__init__.py"
+        $verifyCtranslateExt = Get-ChildItem -Path (Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        $verifySentencepieceExt = Get-ChildItem -Path (Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
         $verifyArchive = Join-Path $verifyAppRoot "offline-runtime\offline-site-packages.zip"
         $verifyHome = Join-Path $verifyRoot "offline-home"
 
@@ -175,6 +179,18 @@ if (-not $SkipOfflineRuntime) {
         }
         if (-not (Test-Path $verifySiteInit) -and -not (Test-Path $verifySiteTranslate) -and -not (Test-Path $verifyArchive)) {
             throw "Installed offline runtime missing both argostranslate package and fallback archive."
+        }
+        if (-not (Test-Path $verifyCtranslateInit)) {
+            throw "Installed offline runtime missing ctranslate2 package: $verifyCtranslateInit"
+        }
+        if (-not $verifyCtranslateExt) {
+            throw "Installed offline runtime missing ctranslate2 extension: $verifyAppRoot\\offline-runtime\\python\\Lib\\site-packages\\ctranslate2\\_ext*.pyd"
+        }
+        if (-not (Test-Path $verifySentencepieceInit)) {
+            throw "Installed offline runtime missing sentencepiece package: $verifySentencepieceInit"
+        }
+        if (-not $verifySentencepieceExt) {
+            throw "Installed offline runtime missing sentencepiece extension: $verifyAppRoot\\offline-runtime\\python\\Lib\\site-packages\\sentencepiece\\_sentencepiece*.pyd"
         }
 
         New-Item -ItemType Directory -Force -Path $verifyHome | Out-Null

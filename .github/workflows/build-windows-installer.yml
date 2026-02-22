@@ -72,6 +72,10 @@ jobs:
             "python\\Lib\\site-packages\\ctranslate2\\*.pyd => $([bool]$ct2Pyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
             $ct2RootPyd = Get-ChildItem -Path (Join-Path $runtimeRoot "python\\ctranslate2") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
             "python\\ctranslate2\\*.pyd => $([bool]$ct2RootPyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
+            $spPyd = Get-ChildItem -Path (Join-Path $runtimeRoot "python\\Lib\\site-packages\\sentencepiece") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            "python\\Lib\\site-packages\\sentencepiece\\*.pyd => $([bool]$spPyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
+            $spRootPyd = Get-ChildItem -Path (Join-Path $runtimeRoot "python\\sentencepiece") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            "python\\sentencepiece\\*.pyd => $([bool]$spRootPyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
           } else {
             "offline-runtime not found: $runtimeRoot" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-tree.txt") -Encoding utf8
           }

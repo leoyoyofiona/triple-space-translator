@@ -102,6 +102,10 @@ def ensure_argostranslate_available() -> None:
         bundled_site = runtime_root / "python" / "Lib" / "site-packages"
         bundled_argos = bundled_site / "argostranslate"
         bundled_root_argos = runtime_root / "python" / "argostranslate"
+        bundled_ctranslate = bundled_site / "ctranslate2"
+        bundled_sentencepiece = bundled_site / "sentencepiece"
+        bundled_ctranslate_ext = any(bundled_ctranslate.glob("_ext*.pyd")) if bundled_ctranslate.exists() else False
+        bundled_sentencepiece_ext = any(bundled_sentencepiece.glob("_sentencepiece*.pyd")) if bundled_sentencepiece.exists() else False
         user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
         if not user_site:
             user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
@@ -164,6 +168,8 @@ def ensure_argostranslate_available() -> None:
             fail(
                 "argostranslate import failed and pip is unavailable for self-heal: "
                 f"{first_exc}; bundled_site_exists={bundled_site.exists()}; bundled_argos_exists={bundled_argos.exists()}; "
+                f"bundled_ctranslate_exists={bundled_ctranslate.exists()}; bundled_ctranslate_ext_exists={bundled_ctranslate_ext}; "
+                f"bundled_sentencepiece_exists={bundled_sentencepiece.exists()}; bundled_sentencepiece_ext_exists={bundled_sentencepiece_ext}; "
                 f"bundled_root_argos_exists={bundled_root_argos.exists()}; "
                 f"archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
             )

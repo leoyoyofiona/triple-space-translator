@@ -21,6 +21,7 @@ $sitePackagesDir = Join-Path (Join-Path $pythonDir "Lib") "site-packages"
 $sitePackagesArchive = Join-Path $OutDir "offline-site-packages.zip"
 $embedZip = Join-Path $workDir "python-embed.zip"
 $getPip = Join-Path $workDir "get-pip.py"
+$coreBootstrapWheelDir = Join-Path $workDir "core-wheelhouse"
 
 function Write-Step([string]$msg) {
     Write-Host "[offline-runtime] $msg" -ForegroundColor Cyan
@@ -298,6 +299,140 @@ try {
     $runtimeDepArgs = @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed") + $runtimeDeps
     Invoke-Python $runtimeDepArgs | Out-Null
 
+    Write-Step "Materializing core runtime wheels into bundled site-packages..."
+    if (Test-Path $coreBootstrapWheelDir) {
+        Remove-Item -Recurse -Force $coreBootstrapWheelDir
+    }
+    New-Item -ItemType Directory -Force -Path $coreBootstrapWheelDir | Out-Null
+
+    $coreWheelSpecs = @(
+        "ctranslate2>=4.0,<5",
+        "sentencepiece==0.2.0",
+        "sacremoses==0.0.53",
+        "packaging"
+    )
+    $coreWheelReady = $false
+    try {
+        $coreDownloadArgs = @("-m", "pip", "download", "--only-binary=:all:", "--dest", $coreBootstrapWheelDir) + $coreWheelSpecs
+        Invoke-Python $coreDownloadArgs | Out-Null
+        if ((Get-ChildItem -Path $coreBootstrapWheelDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+            $coreWheelReady = $true
+        }
+    }
+    catch {
+        Write-Step "Warning: core wheel download failed: $($_.Exception.Message)"
+    }
+
+    if (-not $coreWheelReady) {
+        try {
+            $coreBuildArgs = @("-m", "pip", "wheel", "--wheel-dir", $coreBootstrapWheelDir) + $coreWheelSpecs
+            Invoke-Python $coreBuildArgs | Out-Null
+            if ((Get-ChildItem -Path $coreBootstrapWheelDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
+                (Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+                $coreWheelReady = $true
+            }
+        }
+        catch {
+            Write-Step "Warning: core wheel build failed: $($_.Exception.Message)"
+        }
+    }
+
+    $materializeCoreScriptPath = Join-Path $workDir "materialize_core_deps.py"
+    @'
+import importlib.util
+import os
+import pathlib
+import shutil
+import zipfile
+
+target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
+wheel_dir = pathlib.Path(os.environ["TST_CORE_WHEEL_DIR"]).resolve()
+
+patterns = {
+    "ctranslate2": "ctranslate2-*.whl",
+    "sentencepiece": "sentencepiece-*.whl",
+    "sacremoses": "sacremoses-*.whl",
+    "packaging": "packaging-*.whl",
+}
+
+for mod, pattern in patterns.items():
+    matches = sorted(wheel_dir.glob(pattern))
+    if matches:
+        wheel = matches[-1]
+        with zipfile.ZipFile(wheel, "r") as zf:
+            zf.extractall(target_site)
+        print(f"CORE_WHEEL_EXTRACT {mod} {wheel}")
+        continue
+
+    spec = importlib.util.find_spec(mod)
+    if spec is None:
+        raise RuntimeError(f"{mod} missing and no wheel available in {wheel_dir}")
+
+    copied = False
+    if spec.submodule_search_locations:
+        src = pathlib.Path(next(iter(spec.submodule_search_locations))).resolve()
+        dst = target_site / src.name
+        if src != dst:
+            shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+            copied = True
+        print(f"CORE_FALLBACK_COPY {mod} src={src} dst={dst} copied={copied}")
+    else:
+        origin = spec.origin or ""
+        if not origin:
+            raise RuntimeError(f"{mod} has no origin")
+        src = pathlib.Path(origin).resolve()
+        dst = target_site / src.name
+        if src != dst:
+            if dst.exists():
+                dst.unlink()
+            shutil.copy2(src, dst)
+            copied = True
+        print(f"CORE_FALLBACK_COPY {mod} src={src} dst={dst} copied={copied}")
+'@ | Set-Content -Path $materializeCoreScriptPath -Encoding UTF8
+    Invoke-Python @($materializeCoreScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir; TST_CORE_WHEEL_DIR = $coreBootstrapWheelDir } | Out-Null
+
+    Write-Step "Normalizing core runtime dependency locations into site-packages..."
+    $normalizeDepsScriptPath = Join-Path $workDir "normalize_core_deps.py"
+    @'
+import importlib.util
+import os
+import pathlib
+import shutil
+
+target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
+mods = ("ctranslate2", "sentencepiece", "sacremoses", "packaging")
+
+for mod in mods:
+    spec = importlib.util.find_spec(mod)
+    if spec is None:
+        raise RuntimeError(f"{mod} spec missing after install")
+
+    copied = False
+    if spec.submodule_search_locations:
+        src = pathlib.Path(next(iter(spec.submodule_search_locations))).resolve()
+        dst = target_site / src.name
+        if src != dst:
+            shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+            copied = True
+        print(f"NORMALIZE {mod} package src={src} dst={dst} copied={copied}")
+    else:
+        origin = spec.origin or ""
+        if not origin:
+            raise RuntimeError(f"{mod} has no origin")
+        src = pathlib.Path(origin).resolve()
+        dst = target_site / src.name
+        if src != dst:
+            if dst.exists():
+                dst.unlink()
+            shutil.copy2(src, dst)
+            copied = True
+        print(f"NORMALIZE {mod} module src={src} dst={dst} copied={copied}")
+'@ | Set-Content -Path $normalizeDepsScriptPath -Encoding UTF8
+    Invoke-Python @($normalizeDepsScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir } | Out-Null
+
     $verifyCoreScriptPath = Join-Path $workDir "verify_offline_core.py"
     @'
 import importlib.util
@@ -366,6 +501,30 @@ print("offline_runtime_core_import_ok")
         }
         catch {
             Write-Step "Warning: wheelhouse build failed: $($_.Exception.Message)"
+        }
+    }
+
+    if (-not $wheelOk) {
+        Write-Step "Seeding wheelhouse from bootstrap wheels..."
+        try {
+            if (Test-Path $coreBootstrapWheelDir) {
+                Get-ChildItem -Path $coreBootstrapWheelDir -Filter "*.whl" -File -ErrorAction SilentlyContinue | ForEach-Object {
+                    Copy-Item -Path $_.FullName -Destination (Join-Path $wheelhouseDir $_.Name) -Force
+                }
+            }
+            if (Test-Path $bootstrapWheelDir) {
+                Get-ChildItem -Path $bootstrapWheelDir -Filter "argostranslate-*.whl" -File -ErrorAction SilentlyContinue | ForEach-Object {
+                    Copy-Item -Path $_.FullName -Destination (Join-Path $wheelhouseDir $_.Name) -Force
+                }
+            }
+        }
+        catch {
+            Write-Step "Warning: seeding wheelhouse from bootstrap wheels failed: $($_.Exception.Message)"
+        }
+        if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+            $wheelOk = $true
         }
     }
 
@@ -497,11 +656,32 @@ print(dst)
     $archiveSize = (Get-Item -Path $sitePackagesArchive).Length
     Write-Step "Fallback archive ready: $sitePackagesArchive ($archiveSize bytes)"
 
-    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $sitePackagesArchive)
+    $ctranslateInit = Join-Path $sitePackagesDir "ctranslate2\__init__.py"
+    $sentencepieceInit = Join-Path $sitePackagesDir "sentencepiece\__init__.py"
+    $sacremosesInit = Join-Path $sitePackagesDir "sacremoses\__init__.py"
+    $packagingInit = Join-Path $sitePackagesDir "packaging\__init__.py"
+    $ctranslateExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "ctranslate2") -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $sentencepieceExt = Get-ChildItem -Path (Join-Path $sitePackagesDir "sentencepiece") -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $keyFiles = @(
+        $targetArgosInit,
+        $targetArgosTranslate,
+        $targetArgosPackage,
+        $ctranslateInit,
+        $sentencepieceInit,
+        $sacremosesInit,
+        $packagingInit,
+        $sitePackagesArchive
+    )
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
             throw "Offline runtime key file missing at finalize stage: $f"
         }
+    }
+    if (-not $ctranslateExt) {
+        throw "Offline runtime key file missing at finalize stage: ctranslate2\\_ext*.pyd under $sitePackagesDir\\ctranslate2"
+    }
+    if (-not $sentencepieceExt) {
+        throw "Offline runtime key file missing at finalize stage: sentencepiece\\_sentencepiece*.pyd under $sitePackagesDir\\sentencepiece"
     }
 
     $finalVerifyCoreScriptPath = Join-Path $workDir "verify_offline_core_final.py"
