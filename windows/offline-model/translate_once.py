@@ -27,6 +27,24 @@ def fail(msg: str, code: int = 2) -> None:
     sys.exit(code)
 
 
+def bootstrap_stanza_compat() -> None:
+    # We do not rely on stanza runtime in this app path.
+    os.environ.setdefault("ARGOS_STANZA_AVAILABLE", "0")
+    if importlib.util.find_spec("stanza") is not None:
+        return
+
+    import types
+
+    stub = types.ModuleType("stanza")
+
+    class _PipelineUnavailable:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("stanza runtime is not bundled")
+
+    stub.Pipeline = _PipelineUnavailable
+    sys.modules.setdefault("stanza", stub)
+
+
 def bootstrap_bundled_site_packages() -> None:
     runtime_root = pathlib.Path(__file__).resolve().parent
     python_root = runtime_root / "python"
@@ -128,12 +146,13 @@ def ensure_argostranslate_available() -> None:
                 # Continue to pip-based recovery as fallback.
                 first_exc = RuntimeError(f"{first_exc}; archive_extract={archive_exc}")
 
-        # Secondary self-heal path: unpack argostranslate wheel directly (works without pip).
-        wheel_candidates = sorted(wheelhouse.glob("argostranslate-*.whl")) if wheelhouse.exists() else []
+        # Secondary self-heal path: unpack all available wheels directly (works without pip).
+        wheel_candidates = sorted(wheelhouse.glob("*.whl")) if wheelhouse.exists() else []
         if wheel_candidates:
             try:
-                with zipfile.ZipFile(wheel_candidates[-1], "r") as zf:
-                    zf.extractall(user_site_path)
+                for wheel in wheel_candidates:
+                    with zipfile.ZipFile(wheel, "r") as zf:
+                        zf.extractall(user_site_path)
                 if user_site not in sys.path:
                     sys.path.insert(0, user_site)
                 import argostranslate.translate  # noqa: F401
@@ -168,6 +187,10 @@ def ensure_argostranslate_available() -> None:
                     "--force-reinstall",
                     "--ignore-installed",
                     "argostranslate==1.9.6",
+                    "ctranslate2>=4.0,<5",
+                    "sentencepiece==0.2.0",
+                    "sacremoses==0.0.53",
+                    "packaging",
                 ],
                 capture_output=True,
                 text=True,
@@ -222,6 +245,11 @@ def main() -> int:
         bootstrap_bundled_site_packages()
     except Exception as exc:
         fail(f"offline site-packages bootstrap error: {exc}")
+
+    try:
+        bootstrap_stanza_compat()
+    except Exception as exc:
+        fail(f"offline stanza compat bootstrap error: {exc}")
 
     try:
         bootstrap_seed_home()

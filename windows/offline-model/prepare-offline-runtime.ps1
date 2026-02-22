@@ -288,16 +288,65 @@ try {
         throw "Bundled argostranslate package missing package.py after copy: $targetArgosPackage"
     }
 
-    Invoke-Python @(
-        "-c",
-        "import importlib.util, pathlib, os; spec=importlib.util.find_spec('argostranslate'); root=pathlib.Path(os.environ['TST_RUNTIME_ROOT']).resolve(); assert spec is not None, 'argostranslate spec missing'; c=[]; origin=spec.origin or ''; c.extend([pathlib.Path(origin).resolve()] if origin else []); c.extend(pathlib.Path(p).resolve() for p in (spec.submodule_search_locations or [])); assert c, 'argostranslate has no origin or package locations'; ok=any(str(p).lower().startswith(str(root).lower()) for p in c); assert ok, f'argostranslate outside runtime: {c}'"
-    ) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
+    Write-Step "Installing core runtime dependencies for offline translation..."
+    $runtimeDeps = @(
+        "ctranslate2>=4.0,<5",
+        "sentencepiece==0.2.0",
+        "sacremoses==0.0.53",
+        "packaging"
+    )
+    $runtimeDepArgs = @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed") + $runtimeDeps
+    Invoke-Python $runtimeDepArgs | Out-Null
+
+    $verifyCoreScriptPath = Join-Path $workDir "verify_offline_core.py"
+    @'
+import importlib.util
+import os
+import pathlib
+import sys
+import types
+
+os.environ["ARGOS_STANZA_AVAILABLE"] = "0"
+if importlib.util.find_spec("stanza") is None:
+    m = types.ModuleType("stanza")
+    m.Pipeline = object
+    sys.modules["stanza"] = m
+
+import ctranslate2  # noqa: F401
+import sentencepiece  # noqa: F401
+import sacremoses  # noqa: F401
+import argostranslate.translate as _t  # noqa: F401
+
+root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
+aspec = importlib.util.find_spec("argostranslate")
+assert aspec is not None, "argostranslate spec missing"
+candidates = []
+origin = aspec.origin or ""
+if origin:
+    candidates.append(pathlib.Path(origin).resolve())
+for p in aspec.submodule_search_locations or []:
+    candidates.append(pathlib.Path(p).resolve())
+assert candidates, "argostranslate has no origin or package locations"
+assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"argostranslate outside runtime: {candidates}"
+print("offline_runtime_core_import_ok")
+'@ | Set-Content -Path $verifyCoreScriptPath -Encoding UTF8
+    Invoke-Python @($verifyCoreScriptPath) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
     Write-Step "Downloading offline wheelhouse (best effort for runtime self-heal)..."
     $wheelOk = $false
+    $wheelSpecs = @(
+        "argostranslate==1.9.6",
+        "ctranslate2>=4.0,<5",
+        "sentencepiece==0.2.0",
+        "sacremoses==0.0.53",
+        "packaging"
+    )
     try {
-        Invoke-Python @("-m", "pip", "download", "--no-deps", "--only-binary=:all:", "--dest", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
-        if (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) {
+        $downloadArgs = @("-m", "pip", "download", "--only-binary=:all:", "--dest", $wheelhouseDir) + $wheelSpecs
+        Invoke-Python $downloadArgs | Out-Null
+        if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
     }
@@ -307,8 +356,11 @@ try {
 
     if (-not $wheelOk) {
         try {
-            Invoke-Python @("-m", "pip", "wheel", "--no-deps", "--wheel-dir", $wheelhouseDir, "argostranslate==1.9.6") | Out-Null
-            if (Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) {
+            $wheelBuildArgs = @("-m", "pip", "wheel", "--wheel-dir", $wheelhouseDir) + $wheelSpecs
+            Invoke-Python $wheelBuildArgs | Out-Null
+            if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
+                (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
+                (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
                 $wheelOk = $true
             }
         }
@@ -349,13 +401,35 @@ for source, target in pairs:
 
     Write-Step "Running offline runtime smoke test..."
     try {
-        Invoke-Python @(
-            "-c",
-            "import argostranslate.translate as t; langs=t.get_installed_languages(); en=next((x for x in langs if x.code.startswith('en')),None); zh=next((x for x in langs if x.code.startswith('zh')),None); assert en is not None and zh is not None, 'missing en/zh'; _ = en.get_translation(zh).translate('hello')"
-        ) @{
+        $smokeScriptPath = Join-Path $workDir "offline_smoke_test.py"
+        @'
+import importlib.util
+import os
+import sys
+import types
+
+os.environ["ARGOS_STANZA_AVAILABLE"] = "0"
+if importlib.util.find_spec("stanza") is None:
+    m = types.ModuleType("stanza")
+    m.Pipeline = object
+    sys.modules["stanza"] = m
+
+import argostranslate.translate as t
+
+langs = t.get_installed_languages()
+en = next((x for x in langs if x.code.startswith("en")), None)
+zh = next((x for x in langs if x.code.startswith("zh")), None)
+assert en is not None and zh is not None, "missing en/zh"
+translation = en.get_translation(zh)
+assert translation is not None, "missing en->zh translation"
+_ = translation.translate("hello")
+'@ | Set-Content -Path $smokeScriptPath -Encoding UTF8
+
+        Invoke-Python @($smokeScriptPath) @{
             HOME = $offlineHome
             USERPROFILE = $offlineHome
             TST_OFFLINE_DISABLE_SELF_HEAL = "1"
+            ARGOS_STANZA_AVAILABLE = "0"
         } | Out-Null
     }
     catch {
