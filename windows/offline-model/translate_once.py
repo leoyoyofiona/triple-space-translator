@@ -112,6 +112,19 @@ def ensure_argostranslate_available() -> None:
         user_site_path = pathlib.Path(user_site)
         user_site_path.mkdir(parents=True, exist_ok=True)
 
+        # If previous runs wrote an incomplete offline environment, clear stale core folders
+        # before copying/extracting fresh bundled dependencies.
+        for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+            stale_path = user_site_path / stale_name
+            if stale_path.exists():
+                if stale_path.is_dir():
+                    shutil.rmtree(stale_path, ignore_errors=True)
+                else:
+                    try:
+                        stale_path.unlink()
+                    except OSError:
+                        pass
+
         # First self-heal path: copy packaged site-packages to user-writable location.
         if bundled_argos.exists():
             try:
