@@ -206,7 +206,7 @@ def ensure_argostranslate_available() -> None:
                     "--force-reinstall",
                     "--ignore-installed",
                     "argostranslate==1.9.6",
-                    "ctranslate2>=4.0,<5",
+                    "ctranslate2==4.7.1",
                     "sentencepiece==0.2.0",
                     "sacremoses==0.0.53",
                     "packaging",

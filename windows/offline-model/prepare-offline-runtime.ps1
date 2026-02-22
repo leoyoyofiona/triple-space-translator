@@ -291,7 +291,7 @@ try {
 
     Write-Step "Installing core runtime dependencies for offline translation..."
     $runtimeDeps = @(
-        "ctranslate2>=4.0,<5",
+        "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
         "sacremoses==0.0.53",
         "packaging"
@@ -299,99 +299,54 @@ try {
     $runtimeDepArgs = @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed") + $runtimeDeps
     Invoke-Python $runtimeDepArgs | Out-Null
 
-    Write-Step "Materializing core runtime wheels into bundled site-packages..."
+    Write-Step "Ensuring binary core dependencies from wheels..."
     if (Test-Path $coreBootstrapWheelDir) {
         Remove-Item -Recurse -Force $coreBootstrapWheelDir
     }
     New-Item -ItemType Directory -Force -Path $coreBootstrapWheelDir | Out-Null
 
-    $coreWheelSpecs = @(
-        "ctranslate2>=4.0,<5",
-        "sentencepiece==0.2.0",
-        "sacremoses==0.0.53",
-        "packaging"
+    $coreBinarySpecs = @(
+        "ctranslate2==4.7.1",
+        "sentencepiece==0.2.0"
     )
-    $coreWheelReady = $false
-    try {
-        $coreDownloadArgs = @("-m", "pip", "download", "--only-binary=:all:", "--dest", $coreBootstrapWheelDir) + $coreWheelSpecs
-        Invoke-Python $coreDownloadArgs | Out-Null
-        if ((Get-ChildItem -Path $coreBootstrapWheelDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
-            $coreWheelReady = $true
-        }
-    }
-    catch {
-        Write-Step "Warning: core wheel download failed: $($_.Exception.Message)"
-    }
-
-    if (-not $coreWheelReady) {
+    foreach ($spec in $coreBinarySpecs) {
         try {
-            $coreBuildArgs = @("-m", "pip", "wheel", "--wheel-dir", $coreBootstrapWheelDir) + $coreWheelSpecs
-            Invoke-Python $coreBuildArgs | Out-Null
-            if ((Get-ChildItem -Path $coreBootstrapWheelDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
-                (Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
-                $coreWheelReady = $true
-            }
+            Invoke-Python @("-m", "pip", "download", "--only-binary=:all:", "--dest", $coreBootstrapWheelDir, $spec) | Out-Null
         }
         catch {
-            Write-Step "Warning: core wheel build failed: $($_.Exception.Message)"
+            Write-Step "Warning: core binary wheel download failed for $spec: $($_.Exception.Message)"
         }
     }
 
-    $materializeCoreScriptPath = Join-Path $workDir "materialize_core_deps.py"
-    @'
-import importlib.util
-import os
-import pathlib
-import shutil
-import zipfile
+    $ctranslateWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "ctranslate2-*.whl" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    $sentencepieceWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
 
-target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
-wheel_dir = pathlib.Path(os.environ["TST_CORE_WHEEL_DIR"]).resolve()
+    if (-not $ctranslateWheel -or -not $sentencepieceWheel) {
+        $wheelDirList = ""
+        try {
+            $wheelDirList = (Get-ChildItem -Path $coreBootstrapWheelDir -Name -ErrorAction SilentlyContinue | Select-Object -First 50) -join ", "
+        }
+        catch {
+            $wheelDirList = "<unavailable>"
+        }
+        throw "Missing required core binary wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
+    }
 
-patterns = {
-    "ctranslate2": "ctranslate2-*.whl",
-    "sentencepiece": "sentencepiece-*.whl",
-    "sacremoses": "sacremoses-*.whl",
-    "packaging": "packaging-*.whl",
-}
-
-for mod, pattern in patterns.items():
-    matches = sorted(wheel_dir.glob(pattern))
-    if matches:
-        wheel = matches[-1]
-        with zipfile.ZipFile(wheel, "r") as zf:
-            zf.extractall(target_site)
-        print(f"CORE_WHEEL_EXTRACT {mod} {wheel}")
-        continue
-
-    spec = importlib.util.find_spec(mod)
-    if spec is None:
-        raise RuntimeError(f"{mod} missing and no wheel available in {wheel_dir}")
-
-    copied = False
-    if spec.submodule_search_locations:
-        src = pathlib.Path(next(iter(spec.submodule_search_locations))).resolve()
-        dst = target_site / src.name
-        if src != dst:
-            shutil.rmtree(dst, ignore_errors=True)
-            shutil.copytree(src, dst)
-            copied = True
-        print(f"CORE_FALLBACK_COPY {mod} src={src} dst={dst} copied={copied}")
-    else:
-        origin = spec.origin or ""
-        if not origin:
-            raise RuntimeError(f"{mod} has no origin")
-        src = pathlib.Path(origin).resolve()
-        dst = target_site / src.name
-        if src != dst:
-            if dst.exists():
-                dst.unlink()
-            shutil.copy2(src, dst)
-            copied = True
-        print(f"CORE_FALLBACK_COPY {mod} src={src} dst={dst} copied={copied}")
-'@ | Set-Content -Path $materializeCoreScriptPath -Encoding UTF8
-    Invoke-Python @($materializeCoreScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir; TST_CORE_WHEEL_DIR = $coreBootstrapWheelDir } | Out-Null
+    Write-Step "Installing binary core wheels into bundled site-packages..."
+    Invoke-Python @(
+        "-m", "pip", "install",
+        "--no-deps",
+        "--target", $sitePackagesDir,
+        "--upgrade",
+        "--force-reinstall",
+        "--ignore-installed",
+        $ctranslateWheel.FullName,
+        $sentencepieceWheel.FullName
+    ) | Out-Null
 
     Write-Step "Normalizing core runtime dependency locations into site-packages..."
     $normalizeDepsScriptPath = Join-Path $workDir "normalize_core_deps.py"
@@ -402,12 +357,24 @@ import pathlib
 import shutil
 
 target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
+runtime_root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
 mods = ("ctranslate2", "sentencepiece", "sacremoses", "packaging")
 
 for mod in mods:
     spec = importlib.util.find_spec(mod)
     if spec is None:
         raise RuntimeError(f"{mod} spec missing after install")
+
+    candidates = []
+    origin = spec.origin or ""
+    if origin:
+        candidates.append(pathlib.Path(origin).resolve())
+    for p in spec.submodule_search_locations or []:
+        candidates.append(pathlib.Path(p).resolve())
+    if not candidates:
+        raise RuntimeError(f"{mod} has no import candidates")
+    if not any(str(p).lower().startswith(str(runtime_root).lower()) for p in candidates):
+        raise RuntimeError(f"{mod} resolved outside runtime root: {candidates}")
 
     copied = False
     if spec.submodule_search_locations:
@@ -419,9 +386,6 @@ for mod in mods:
             copied = True
         print(f"NORMALIZE {mod} package src={src} dst={dst} copied={copied}")
     else:
-        origin = spec.origin or ""
-        if not origin:
-            raise RuntimeError(f"{mod} has no origin")
         src = pathlib.Path(origin).resolve()
         dst = target_site / src.name
         if src != dst:
@@ -431,7 +395,7 @@ for mod in mods:
             copied = True
         print(f"NORMALIZE {mod} module src={src} dst={dst} copied={copied}")
 '@ | Set-Content -Path $normalizeDepsScriptPath -Encoding UTF8
-    Invoke-Python @($normalizeDepsScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir } | Out-Null
+    Invoke-Python @($normalizeDepsScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir; TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
     $verifyCoreScriptPath = Join-Path $workDir "verify_offline_core.py"
     @'
@@ -453,16 +417,20 @@ import sacremoses  # noqa: F401
 import argostranslate.translate as _t  # noqa: F401
 
 root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
-aspec = importlib.util.find_spec("argostranslate")
-assert aspec is not None, "argostranslate spec missing"
-candidates = []
-origin = aspec.origin or ""
-if origin:
-    candidates.append(pathlib.Path(origin).resolve())
-for p in aspec.submodule_search_locations or []:
-    candidates.append(pathlib.Path(p).resolve())
-assert candidates, "argostranslate has no origin or package locations"
-assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"argostranslate outside runtime: {candidates}"
+def assert_in_runtime(name: str):
+    spec = importlib.util.find_spec(name)
+    assert spec is not None, f"{name} spec missing"
+    candidates = []
+    origin = spec.origin or ""
+    if origin:
+        candidates.append(pathlib.Path(origin).resolve())
+    for p in spec.submodule_search_locations or []:
+        candidates.append(pathlib.Path(p).resolve())
+    assert candidates, f"{name} has no origin or package locations"
+    assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"{name} outside runtime: {candidates}"
+
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+    assert_in_runtime(mod)
 print("offline_runtime_core_import_ok")
 '@ | Set-Content -Path $verifyCoreScriptPath -Encoding UTF8
     Invoke-Python @($verifyCoreScriptPath) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
@@ -471,7 +439,7 @@ print("offline_runtime_core_import_ok")
     $wheelOk = $false
     $wheelSpecs = @(
         "argostranslate==1.9.6",
-        "ctranslate2>=4.0,<5",
+        "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
         "sacremoses==0.0.53",
         "packaging"
@@ -674,7 +642,14 @@ print(dst)
     )
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
-            throw "Offline runtime key file missing at finalize stage: $f"
+            $siteTop = ""
+            try {
+                $siteTop = (Get-ChildItem -Path $sitePackagesDir -Name -ErrorAction SilentlyContinue | Select-Object -First 80) -join ", "
+            }
+            catch {
+                $siteTop = "<unavailable>"
+            }
+            throw "Offline runtime key file missing at finalize stage: $f; site_top=$siteTop"
         }
     }
     if (-not $ctranslateExt) {
