@@ -232,7 +232,35 @@ print(f"COPY_FROM_IMPORT src={src} dst={dst}")
         }
 
         if ([string]::IsNullOrWhiteSpace($wheelFile)) {
-            throw "Wheel fallback unavailable: no argostranslate wheel in $bootstrapWheelDir"
+            Write-Step "Trying direct PyPI wheel download fallback..."
+            try {
+                $pypiJson = Join-Path $bootstrapWheelDir "argostranslate-1.9.6.json"
+                Invoke-WebRequest -Uri "https://pypi.org/pypi/argostranslate/1.9.6/json" -OutFile $pypiJson
+                $meta = Get-Content -Path $pypiJson -Raw | ConvertFrom-Json
+                $wheelUrl = ($meta.urls | Where-Object { $_.filename -like "argostranslate-*.whl" } | Select-Object -First 1).url
+                if (-not [string]::IsNullOrWhiteSpace($wheelUrl)) {
+                    $wheelName = Split-Path $wheelUrl -Leaf
+                    $wheelPath = Join-Path $bootstrapWheelDir $wheelName
+                    Invoke-WebRequest -Uri $wheelUrl -OutFile $wheelPath
+                    if (Test-Path $wheelPath) {
+                        $wheelFile = $wheelPath
+                    }
+                }
+            }
+            catch {
+                Write-Step "Warning: direct PyPI wheel download failed: $($_.Exception.Message)"
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($wheelFile)) {
+            $wheelDirList = ""
+            try {
+                $wheelDirList = (Get-ChildItem -Path $bootstrapWheelDir -Name -ErrorAction SilentlyContinue | Select-Object -First 50) -join ", "
+            }
+            catch {
+                $wheelDirList = "<unavailable>"
+            }
+            throw "Wheel fallback unavailable: no argostranslate wheel in $bootstrapWheelDir; files=$wheelDirList"
         }
 
         $extractWheelScriptPath = Join-Path $workDir "extract_argostranslate_wheel.py"
