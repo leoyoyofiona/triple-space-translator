@@ -167,8 +167,6 @@ if (-not $SkipOfflineRuntime) {
         $verifyScript = Join-Path $verifyAppRoot "offline-runtime\translate_once.py"
         $verifySiteInit = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\__init__.py"
         $verifySiteTranslate = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\argostranslate\translate.py"
-        $verifyCt2Init = Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2\__init__.py"
-        $verifyCt2Pyd = Get-ChildItem -Path (Join-Path $verifyAppRoot "offline-runtime\python\Lib\site-packages\ctranslate2") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
         $verifyArchive = Join-Path $verifyAppRoot "offline-runtime\offline-site-packages.zip"
         $verifyHome = Join-Path $verifyRoot "offline-home"
 
@@ -177,9 +175,6 @@ if (-not $SkipOfflineRuntime) {
         }
         if (-not (Test-Path $verifySiteInit) -and -not (Test-Path $verifySiteTranslate) -and -not (Test-Path $verifyArchive)) {
             throw "Installed offline runtime missing both argostranslate package and fallback archive."
-        }
-        if (-not (Test-Path $verifyCt2Init) -or -not $verifyCt2Pyd) {
-            throw "Installed offline runtime missing ctranslate2 package files."
         }
 
         New-Item -ItemType Directory -Force -Path $verifyHome | Out-Null
@@ -194,11 +189,45 @@ if (-not $SkipOfflineRuntime) {
             if ([string]::IsNullOrWhiteSpace(($verifyOutput | Out-String).Trim())) {
                 throw "Installed offline translate smoke test returned empty output"
             }
+
+            $verifyCoreDepsScript = Join-Path $verifyRoot "verify_core_deps.py"
+            @'
+import importlib.util
+import pathlib
+import os
+
+runtime_root = pathlib.Path(os.environ["TST_VERIFY_RUNTIME_ROOT"]).resolve()
+
+def check(name: str):
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        raise RuntimeError(f"{name} spec missing")
+    candidates = []
+    origin = spec.origin or ""
+    if origin:
+        candidates.append(pathlib.Path(origin).resolve())
+    for p in spec.submodule_search_locations or []:
+        candidates.append(pathlib.Path(p).resolve())
+    if not candidates:
+        raise RuntimeError(f"{name} has no origin/submodule locations")
+    if not any(str(p).lower().startswith(str(runtime_root).lower()) for p in candidates):
+        raise RuntimeError(f"{name} outside runtime root: {candidates}")
+
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+    check(mod)
+'@ | Set-Content -Path $verifyCoreDepsScript -Encoding UTF8
+
+            $env:TST_VERIFY_RUNTIME_ROOT = Join-Path $verifyAppRoot "offline-runtime\python"
+            & $verifyPython $verifyCoreDepsScript
+            if ($LASTEXITCODE -ne 0) {
+                throw "Installed offline core dependency verification failed with exit code $LASTEXITCODE"
+            }
         }
         finally {
             Remove-Item Env:TST_OFFLINE_DISABLE_SELF_HEAL -ErrorAction SilentlyContinue
             Remove-Item Env:HOME -ErrorAction SilentlyContinue
             Remove-Item Env:USERPROFILE -ErrorAction SilentlyContinue
+            Remove-Item Env:TST_VERIFY_RUNTIME_ROOT -ErrorAction SilentlyContinue
         }
     }
     finally {

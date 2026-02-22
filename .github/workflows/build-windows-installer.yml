@@ -59,7 +59,9 @@ jobs:
               "python\\Lib\\site-packages\\argostranslate\\translate.py",
               "python\\Lib\\site-packages\\argostranslate\\package.py",
               "python\\Lib\\site-packages\\ctranslate2\\__init__.py",
+              "python\\ctranslate2\\__init__.py",
               "python\\Lib\\site-packages\\sentencepiece\\__init__.py",
+              "python\\sentencepiece\\__init__.py",
               "offline-site-packages.zip"
             )
             foreach ($rel in $keyFiles) {
@@ -68,6 +70,8 @@ jobs:
             }
             $ct2Pyd = Get-ChildItem -Path (Join-Path $runtimeRoot "python\\Lib\\site-packages\\ctranslate2") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
             "python\\Lib\\site-packages\\ctranslate2\\*.pyd => $([bool]$ct2Pyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
+            $ct2RootPyd = Get-ChildItem -Path (Join-Path $runtimeRoot "python\\ctranslate2") -Filter "*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            "python\\ctranslate2\\*.pyd => $([bool]$ct2RootPyd)" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-key-files.txt") -Encoding utf8 -Append
           } else {
             "offline-runtime not found: $runtimeRoot" | Out-File -FilePath (Join-Path $debugDir "offline-runtime-tree.txt") -Encoding utf8
           }

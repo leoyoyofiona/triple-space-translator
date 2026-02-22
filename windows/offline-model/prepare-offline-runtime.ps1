@@ -497,19 +497,42 @@ print(dst)
     $archiveSize = (Get-Item -Path $sitePackagesArchive).Length
     Write-Step "Fallback archive ready: $sitePackagesArchive ($archiveSize bytes)"
 
-    $ct2Dir = Join-Path $sitePackagesDir "ctranslate2"
-    $ct2Init = Join-Path $ct2Dir "__init__.py"
-    $ct2PydExists = (Get-ChildItem -Path $ct2Dir -Filter "*.pyd" -ErrorAction SilentlyContinue | Select-Object -First 1) -ne $null
-    $sentencepieceInit = Join-Path (Join-Path $sitePackagesDir "sentencepiece") "__init__.py"
-    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $ct2Init, $sentencepieceInit, $sitePackagesArchive)
+    $keyFiles = @($targetArgosInit, $targetArgosTranslate, $targetArgosPackage, $sitePackagesArchive)
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
             throw "Offline runtime key file missing at finalize stage: $f"
         }
     }
-    if (-not $ct2PydExists) {
-        throw "Offline runtime key file missing at finalize stage: $ct2Dir\\*.pyd"
-    }
+
+    $finalVerifyCoreScriptPath = Join-Path $workDir "verify_offline_core_final.py"
+    @'
+import importlib.util
+import pathlib
+import os
+
+root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
+
+def assert_module_in_runtime(name: str):
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        raise RuntimeError(f"{name} spec missing")
+    candidates = []
+    origin = spec.origin or ""
+    if origin:
+        candidates.append(pathlib.Path(origin).resolve())
+    for p in spec.submodule_search_locations or []:
+        candidates.append(pathlib.Path(p).resolve())
+    if not candidates:
+        raise RuntimeError(f"{name} has no origin/submodule locations")
+    if not any(str(p).lower().startswith(str(root).lower()) for p in candidates):
+        raise RuntimeError(f"{name} is outside runtime root: {candidates}")
+    return candidates[0]
+
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+    loc = assert_module_in_runtime(mod)
+    print(f"FINAL_CORE_OK {mod} {loc}")
+'@ | Set-Content -Path $finalVerifyCoreScriptPath -Encoding UTF8
+    Invoke-Python @($finalVerifyCoreScriptPath) @{ TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
     Write-Step "Offline runtime ready: $OutDir"
     Get-ChildItem -Path $OutDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
