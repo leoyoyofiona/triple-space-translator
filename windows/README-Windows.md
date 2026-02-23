@@ -17,23 +17,41 @@ This is the Windows stable edition of your app.
   - Ctrl+A + Unicode typing fallback
 - Runs in system tray when minimized. Right-click tray icon for `Open / Pause Hook / Exit`.
 
+## Windows UI Preview
+
+| Settings UI | Status UI |
+|---|---|
+| ![Windows Settings UI](../assets/screenshots/windows/windows-ui-status-1.png) | ![Windows Status UI](../assets/screenshots/windows/windows-ui-status-2.png) |
+
+## Windows Translation Status (Important)
+
+- Current stable usage on Windows is **online API translation**.
+- You need to configure provider + API key in app settings.
+- Because Windows does not provide the same built-in translation path as macOS `Translation.framework` for this app, online translation can have some latency.
+- Offline bundled dictionary/model mode is still under active development and improvement.
+
 ## Translation provider
 
-The app supports three providers:
+The app UI provides three provider options:
 
-- `Offline (Built-in)` (default, no network/API key)
 - `OpenAI` (recommended for quality)
 - `LibreTranslate` (works with local/self-hosted endpoint)
+- `Offline (Built-in)` (experimental/in-progress)
 
-Default behavior (out-of-box):
+For stable day-to-day usage, use `OpenAI` or `LibreTranslate` online endpoint.
 
-- Fresh install defaults to `Offline (Built-in)`.
-- No API key is required for first use.
-- No network is required in offline mode.
-- Installer size is larger because zh<->en model runtime is bundled.
-- First translation may take a few extra seconds to initialize local runtime data in `%LOCALAPPDATA%\\TripleSpaceTranslator\\offline-home`.
+Configure provider/API key/base URL in app UI and click `Save Settings`.
 
-## One-click local LibreTranslate (faster, no online API latency)
+OpenAI config example:
+
+- `Base URL`: `https://api.openai.com/v1` (do not append `/responses`)
+- `Model`: `gpt-4o-mini`
+
+Settings file path:
+
+- `%APPDATA%\\TripleSpaceTranslator\\settings.json`
+
+## Optional: one-click local LibreTranslate (self-hosted)
 
 Use local translation service on the same Windows machine:
 
@@ -56,17 +74,6 @@ If installed via `.exe`, the Start Menu includes:
 
 - `Enable Local LibreTranslate (One Click)`
 - `Stop Local LibreTranslate`
-
-Configure provider/API key/base URL in app UI and click `Save Settings`.
-
-OpenAI config example:
-
-- `Base URL`: `https://api.openai.com/v1` (do not append `/responses`)
-- `Model`: `gpt-4o-mini`
-
-Settings file path:
-
-- `%APPDATA%\\TripleSpaceTranslator\\settings.json`
 
 ## Build (Windows machine)
 
@@ -110,8 +117,8 @@ powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 -AppVersion 1.0.0
 
 Notes:
 
-- This script now prepares bundled offline runtime (`windows\\dist\\offline-runtime`) before packaging.
-- First build may take longer due Python/runtime/model download.
+- This script may prepare offline runtime assets (`windows\\dist\\offline-runtime`) depending on current branch implementation.
+- Build time can increase due runtime/model dependency preparation.
 
 Installer output:
 

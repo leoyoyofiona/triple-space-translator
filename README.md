@@ -22,7 +22,8 @@ Why this matters:
 Current highlights:
 
 - macOS: system translation framework
-- Windows: built-in offline model by default (out-of-box, no API key, no network)
+- Windows: online API translation is available now (set API key in app settings; may have some latency)
+- Windows offline bundled dictionary/model mode is under active development
 - Bidirectional round-trip toggle:
   - Chinese -> English -> Chinese
   - English -> Chinese -> English
@@ -32,6 +33,12 @@ Current highlights:
 | Chinese input | After triple-space replacement |
 |---|---|
 | ![Before Translation](assets/screenshots/demo-zh-input.png) | ![After Translation](assets/screenshots/demo-en-output.png) |
+
+## Windows UI Preview
+
+| Settings Window | Runtime Status Window |
+|---|---|
+| ![Windows Settings UI](assets/screenshots/windows/windows-ui-status-1.png) | ![Windows Runtime Status](assets/screenshots/windows/windows-ui-status-2.png) |
 
 ## How It Works
 
@@ -54,6 +61,12 @@ Best use cases:
 - Download assets from the latest release:
   - macOS: `DMG / ZIP`
   - Windows: `EXE` installer
+
+## Windows Translation Status
+
+- Current stable Windows usage: online API translation (configure provider + API key).
+- Compared with macOS Translation.framework, Windows does not have the same built-in system translation path for this app.
+- Offline packaged dictionary/model mode is still being developed and improved.
 
 ## Platform Guides
 
