@@ -6,6 +6,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 
@@ -86,6 +87,80 @@ def bootstrap_seed_home() -> None:
         shutil.copytree(seed_config, user_home / ".config", dirs_exist_ok=True)
 
 
+def _clear_import_cache() -> None:
+    prefixes = ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy")
+    for name in list(sys.modules.keys()):
+        for prefix in prefixes:
+            if name == prefix or name.startswith(prefix + "."):
+                sys.modules.pop(name, None)
+                break
+
+
+def _rmtree_force(path: pathlib.Path) -> None:
+    def _on_error(func, name, _exc_info):
+        try:
+            os.chmod(name, 0o700)
+            func(name)
+        except Exception:
+            pass
+
+    if not path.exists():
+        return
+    try:
+        shutil.rmtree(path, onerror=_on_error)
+    except Exception:
+        pass
+
+
+def _remove_path_force(path: pathlib.Path) -> None:
+    if not path.exists():
+        return
+    if path.is_dir():
+        _rmtree_force(path)
+        return
+    try:
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+    try:
+        path.unlink()
+    except Exception:
+        pass
+
+
+def _ensure_writable_dir(path: pathlib.Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    probe = path / f".tst_write_probe_{os.getpid()}"
+    with open(probe, "w", encoding="utf-8") as fp:
+        fp.write("ok")
+    try:
+        probe.unlink()
+    except OSError:
+        pass
+
+
+def _dedupe_paths(paths: list[pathlib.Path]) -> list[pathlib.Path]:
+    seen: set[str] = set()
+    out: list[pathlib.Path] = []
+    for p in paths:
+        key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def _activate_user_site(current: pathlib.Path, all_candidates: list[pathlib.Path]) -> None:
+    current_text = str(current)
+    for candidate in all_candidates:
+        value = str(candidate)
+        while value in sys.path:
+            sys.path.remove(value)
+    if current_text not in sys.path:
+        sys.path.insert(0, current_text)
+
+
 def ensure_argostranslate_available() -> None:
     try:
         import argostranslate.translate  # noqa: F401
@@ -95,46 +170,75 @@ def ensure_argostranslate_available() -> None:
         if disable_self_heal:
             fail(f"argostranslate import failed (self-heal disabled): {first_exc}; sys.path={sys.path}")
 
-        runtime_root = pathlib.Path(__file__).resolve().parent
-        python_exe = runtime_root / "python" / "python.exe"
-        wheelhouse = runtime_root / "wheelhouse"
-        site_archive = runtime_root / "offline-site-packages.zip"
-        bundled_site = runtime_root / "python" / "Lib" / "site-packages"
-        bundled_argos = bundled_site / "argostranslate"
-        bundled_root_argos = runtime_root / "python" / "argostranslate"
-        bundled_ctranslate = bundled_site / "ctranslate2"
-        bundled_sentencepiece = bundled_site / "sentencepiece"
-        bundled_ctranslate_ext = any(bundled_ctranslate.glob("_ext*.pyd")) if bundled_ctranslate.exists() else False
-        bundled_sentencepiece_ext = any(bundled_sentencepiece.glob("_sentencepiece*.pyd")) if bundled_sentencepiece.exists() else False
-        user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
-        if not user_site:
-            user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
-        user_site_path = pathlib.Path(user_site)
-        user_site_path.mkdir(parents=True, exist_ok=True)
+    runtime_root = pathlib.Path(__file__).resolve().parent
+    python_exe = runtime_root / "python" / "python.exe"
+    wheelhouse = runtime_root / "wheelhouse"
+    site_archive = runtime_root / "offline-site-packages.zip"
+    bundled_site = runtime_root / "python" / "Lib" / "site-packages"
+    bundled_argos = bundled_site / "argostranslate"
+    bundled_root_argos = runtime_root / "python" / "argostranslate"
+    bundled_ctranslate = bundled_site / "ctranslate2"
+    bundled_sentencepiece = bundled_site / "sentencepiece"
+    bundled_ctranslate_ext = any(bundled_ctranslate.glob("_ext*.pyd")) if bundled_ctranslate.exists() else False
+    bundled_sentencepiece_ext = any(bundled_sentencepiece.glob("_sentencepiece*.pyd")) if bundled_sentencepiece.exists() else False
+    wheel_candidates = sorted(wheelhouse.glob("*.whl")) if wheelhouse.exists() else []
 
-        # If previous runs wrote an incomplete offline environment, clear stale core folders
-        # before copying/extracting fresh bundled dependencies.
-        for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
-            stale_path = user_site_path / stale_name
-            if stale_path.exists():
-                if stale_path.is_dir():
-                    shutil.rmtree(stale_path, ignore_errors=True)
-                else:
-                    try:
-                        stale_path.unlink()
-                    except OSError:
-                        pass
+    primary_user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
+    if not primary_user_site:
+        local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+        if local_app_data:
+            primary_user_site = str(pathlib.Path(local_app_data) / "TripleSpaceTranslator" / "offline-site-packages")
+        else:
+            primary_user_site = str(pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages")
+
+    fallback_root = os.environ.get("TST_OFFLINE_ALT_USER_SITE_ROOT", "").strip()
+    if fallback_root:
+        fallback_base = pathlib.Path(fallback_root)
+    else:
+        fallback_base = pathlib.Path(tempfile.gettempdir()) / "TripleSpaceTranslator"
+
+    alt_user_site = os.environ.get("TST_OFFLINE_ALT_USER_SITE", "").strip()
+    home_user_site = pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages"
+    user_site_candidates = _dedupe_paths(
+        [
+            pathlib.Path(primary_user_site),
+            pathlib.Path(alt_user_site) if alt_user_site else pathlib.Path(primary_user_site),
+            fallback_base / "offline-site-packages",
+            fallback_base / f"offline-site-packages-{os.getpid()}",
+            home_user_site,
+        ]
+    )
+
+    attempt_errors: list[str] = []
+    for user_site_path in user_site_candidates:
+        user_site = str(user_site_path)
+        candidate_error: Exception = first_exc
+        try:
+            _ensure_writable_dir(user_site_path)
+        except Exception as writable_exc:
+            attempt_errors.append(f"user_site_not_writable={user_site}; err={writable_exc}")
+            continue
+
+        # If previous runs wrote an incomplete environment, clear stale core folders first.
+        for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy"):
+            _remove_path_force(user_site_path / stale_name)
+        for stale_glob in ("*.dist-info", "*.data"):
+            for stale_path in user_site_path.glob(stale_glob):
+                _remove_path_force(stale_path)
+
+        _activate_user_site(user_site_path, user_site_candidates)
+        _clear_import_cache()
 
         # First self-heal path: copy packaged site-packages to user-writable location.
         if bundled_argos.exists():
             try:
                 shutil.copytree(bundled_site, user_site_path, dirs_exist_ok=True)
-                if user_site not in sys.path:
-                    sys.path.insert(0, user_site)
+                _activate_user_site(user_site_path, user_site_candidates)
+                _clear_import_cache()
                 import argostranslate.translate  # noqa: F401
                 return
             except Exception as bundled_copy_exc:
-                first_exc = RuntimeError(f"{first_exc}; bundled_copy={bundled_copy_exc}")
+                candidate_error = RuntimeError(f"{candidate_error}; bundled_copy={bundled_copy_exc}")
 
         # Extra fallback: locate any packaged argostranslate folder under runtime/python and copy it.
         if not bundled_argos.exists():
@@ -143,49 +247,41 @@ def ensure_argostranslate_available() -> None:
                 try:
                     source_pkg = matches[0].parent
                     shutil.copytree(source_pkg, user_site_path / "argostranslate", dirs_exist_ok=True)
-                    if user_site not in sys.path:
-                        sys.path.insert(0, user_site)
+                    _activate_user_site(user_site_path, user_site_candidates)
+                    _clear_import_cache()
                     import argostranslate.translate  # noqa: F401
                     return
                 except Exception as deep_copy_exc:
-                    first_exc = RuntimeError(f"{first_exc}; deep_copy={deep_copy_exc}")
+                    candidate_error = RuntimeError(f"{candidate_error}; deep_copy={deep_copy_exc}")
 
-        # Primary self-heal path: unpack bundled site-packages archive (works fully offline, no pip required).
+        # Primary self-heal path: unpack bundled site-packages archive (fully offline).
         if site_archive.exists():
             try:
                 with zipfile.ZipFile(site_archive, "r") as zf:
                     zf.extractall(user_site_path)
-                if user_site not in sys.path:
-                    sys.path.insert(0, user_site)
+                _activate_user_site(user_site_path, user_site_candidates)
+                _clear_import_cache()
                 import argostranslate.translate  # noqa: F401
                 return
             except Exception as archive_exc:
-                # Continue to pip-based recovery as fallback.
-                first_exc = RuntimeError(f"{first_exc}; archive_extract={archive_exc}")
+                candidate_error = RuntimeError(f"{candidate_error}; archive_extract={archive_exc}")
 
-        # Secondary self-heal path: unpack all available wheels directly (works without pip).
-        wheel_candidates = sorted(wheelhouse.glob("*.whl")) if wheelhouse.exists() else []
+        # Secondary self-heal path: unpack wheels directly (works without pip).
         if wheel_candidates:
             try:
                 for wheel in wheel_candidates:
                     with zipfile.ZipFile(wheel, "r") as zf:
                         zf.extractall(user_site_path)
-                if user_site not in sys.path:
-                    sys.path.insert(0, user_site)
+                _activate_user_site(user_site_path, user_site_candidates)
+                _clear_import_cache()
                 import argostranslate.translate  # noqa: F401
                 return
             except Exception as wheel_exc:
-                first_exc = RuntimeError(f"{first_exc}; wheel_extract={wheel_exc}")
+                candidate_error = RuntimeError(f"{candidate_error}; wheel_extract={wheel_exc}")
 
         if importlib.util.find_spec("pip") is None:
-            fail(
-                "argostranslate import failed and pip is unavailable for self-heal: "
-                f"{first_exc}; bundled_site_exists={bundled_site.exists()}; bundled_argos_exists={bundled_argos.exists()}; "
-                f"bundled_ctranslate_exists={bundled_ctranslate.exists()}; bundled_ctranslate_ext_exists={bundled_ctranslate_ext}; "
-                f"bundled_sentencepiece_exists={bundled_sentencepiece.exists()}; bundled_sentencepiece_ext_exists={bundled_sentencepiece_ext}; "
-                f"bundled_root_argos_exists={bundled_root_argos.exists()}; "
-                f"archive_exists={site_archive.exists()}; wheel_exists={bool(wheel_candidates)}; sys.path={sys.path}"
-            )
+            attempt_errors.append(f"user_site={user_site}; err={candidate_error}; pip_available=False")
+            continue
 
         if python_exe.exists() and wheelhouse.exists():
             env = os.environ.copy()
@@ -210,38 +306,41 @@ def ensure_argostranslate_available() -> None:
                     "sentencepiece==0.2.0",
                     "sacremoses==0.0.53",
                     "packaging",
+                    "numpy==1.26.4",
                 ],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 env=env,
             )
-            if result.returncode != 0:
-                fail(
-                    "argostranslate self-heal install failed: "
-                    f"exit={result.returncode}; stderr={result.stderr.strip()}; stdout={result.stdout.strip()}"
+            if result.returncode == 0:
+                _activate_user_site(user_site_path, user_site_candidates)
+                _clear_import_cache()
+                try:
+                    import argostranslate.translate  # noqa: F401
+                    return
+                except Exception as second_exc:
+                    candidate_error = RuntimeError(f"{candidate_error}; pip_import={second_exc}")
+            else:
+                candidate_error = RuntimeError(
+                    f"{candidate_error}; pip_install_exit={result.returncode}; "
+                    f"stderr={result.stderr.strip()}; stdout={result.stdout.strip()}"
                 )
 
-            if user_site not in sys.path:
-                sys.path.insert(0, user_site)
+        attempt_errors.append(f"user_site={user_site}; err={candidate_error}")
 
-            try:
-                import argostranslate.translate  # noqa: F401
-                return
-            except Exception as second_exc:
-                fail(
-                    "argostranslate import failed after self-heal: "
-                    f"{second_exc}; user_site={user_site}; sys.path={sys.path}"
-                )
-
-        runtime_pkg = runtime_root / "python" / "argostranslate"
-        site_pkg = runtime_root / "python" / "Lib" / "site-packages" / "argostranslate"
-        fail(
-            "argostranslate import failed: "
-            f"{first_exc}; runtime_pkg={runtime_pkg.exists()}; "
-            f"site_pkg={site_pkg.exists()}; wheelhouse={wheelhouse.exists()}; archive={site_archive.exists()}; "
-            f"sys.path={sys.path}"
-        )
+    runtime_pkg = runtime_root / "python" / "argostranslate"
+    site_pkg = runtime_root / "python" / "Lib" / "site-packages" / "argostranslate"
+    fail(
+        "argostranslate import failed across user-site candidates: "
+        f"{' || '.join(attempt_errors)}; "
+        f"runtime_pkg={runtime_pkg.exists()}; "
+        f"site_pkg={site_pkg.exists()}; wheelhouse={wheelhouse.exists()}; archive={site_archive.exists()}; "
+        f"bundled_argos_exists={bundled_argos.exists()}; "
+        f"bundled_ctranslate_exists={bundled_ctranslate.exists()}; bundled_ctranslate_ext_exists={bundled_ctranslate_ext}; "
+        f"bundled_sentencepiece_exists={bundled_sentencepiece.exists()}; bundled_sentencepiece_ext_exists={bundled_sentencepiece_ext}; "
+        f"bundled_root_argos_exists={bundled_root_argos.exists()}; sys.path={sys.path}"
+    )
 
 
 def main() -> int:

@@ -330,6 +330,7 @@ try {
     $runtimeDeps = @(
         "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
+        "numpy==1.26.4",
         "sacremoses==0.0.53",
         "packaging"
     )
@@ -352,6 +353,11 @@ try {
             Name = "sentencepiece"
             Version = "0.2.0"
             PreferredPatterns = @("sentencepiece-*-cp311-cp311-win_amd64.whl", "sentencepiece-*-cp311-*-win_amd64.whl")
+        },
+        @{
+            Name = "numpy"
+            Version = "1.26.4"
+            PreferredPatterns = @("numpy-*-cp311-cp311-win_amd64.whl", "numpy-*-cp311-*-win_amd64.whl")
         }
     )
     foreach ($target in $coreBinaryTargets) {
@@ -386,8 +392,11 @@ try {
     $sentencepieceWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sentencepiece-*.whl" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
+    $numpyWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "numpy-*.whl" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
 
-    if (-not $ctranslateWheel -or -not $sentencepieceWheel) {
+    if (-not $ctranslateWheel -or -not $sentencepieceWheel -or -not $numpyWheel) {
         $wheelDirList = ""
         try {
             $wheelDirList = (Get-ChildItem -Path $coreBootstrapWheelDir -Name -ErrorAction SilentlyContinue | Select-Object -First 50) -join ", "
@@ -395,7 +404,7 @@ try {
         catch {
             $wheelDirList = "<unavailable>"
         }
-        throw "Missing required core binary wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
+        throw "Missing required core binary wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); numpy=$([bool]$numpyWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
     }
 
     Write-Step "Installing binary core wheels into bundled site-packages..."
@@ -407,7 +416,8 @@ try {
         "--force-reinstall",
         "--ignore-installed",
         $ctranslateWheel.FullName,
-        $sentencepieceWheel.FullName
+        $sentencepieceWheel.FullName,
+        $numpyWheel.FullName
     ) | Out-Null
 
     Write-Step "Normalizing core runtime dependency locations into site-packages..."
@@ -420,7 +430,7 @@ import shutil
 
 target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
 runtime_root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
-mods = ("ctranslate2", "sentencepiece", "sacremoses", "packaging")
+mods = ("ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging")
 
 for mod in mods:
     spec = importlib.util.find_spec(mod)
@@ -475,6 +485,7 @@ if importlib.util.find_spec("stanza") is None:
 
 import ctranslate2  # noqa: F401
 import sentencepiece  # noqa: F401
+import numpy  # noqa: F401
 import sacremoses  # noqa: F401
 import argostranslate.translate as _t  # noqa: F401
 
@@ -491,7 +502,7 @@ def assert_in_runtime(name: str):
     assert candidates, f"{name} has no origin or package locations"
     assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"{name} outside runtime: {candidates}"
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging"):
     assert_in_runtime(mod)
 print("offline_runtime_core_import_ok")
 '@ | Set-Content -Path $verifyCoreScriptPath -Encoding UTF8
@@ -503,6 +514,7 @@ print("offline_runtime_core_import_ok")
         "argostranslate==1.9.6",
         "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
+        "numpy==1.26.4",
         "sacremoses==0.0.53",
         "packaging"
     )
@@ -511,7 +523,8 @@ print("offline_runtime_core_import_ok")
         Invoke-Python $downloadArgs | Out-Null
         if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
     }
@@ -525,7 +538,8 @@ print("offline_runtime_core_import_ok")
             Invoke-Python $wheelBuildArgs | Out-Null
             if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
-                (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+                (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
+                (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
                 $wheelOk = $true
             }
         }
@@ -553,7 +567,8 @@ print("offline_runtime_core_import_ok")
         }
         if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue)) {
+            (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
     }
@@ -626,7 +641,7 @@ _ = translation.translate("hello")
     }
 
     Write-Step "Ensuring core modules exist in bundled site-packages..."
-    $corePackages = @("ctranslate2", "sentencepiece", "sacremoses", "packaging")
+    $corePackages = @("ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging")
     foreach ($pkg in $corePackages) {
         $siteDir = Join-Path $sitePackagesDir $pkg
         $rootDir = Join-Path $pythonDir $pkg
@@ -762,7 +777,7 @@ def assert_module_in_runtime(name: str):
         raise RuntimeError(f"{name} is outside runtime root: {candidates}")
     return candidates[0]
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging"):
     loc = assert_module_in_runtime(mod)
     print(f"FINAL_CORE_OK {mod} {loc}")
 '@ | Set-Content -Path $finalVerifyCoreScriptPath -Encoding UTF8

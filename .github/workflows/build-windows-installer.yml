@@ -62,6 +62,8 @@ jobs:
               "python\\ctranslate2\\__init__.py",
               "python\\Lib\\site-packages\\sentencepiece\\__init__.py",
               "python\\sentencepiece\\__init__.py",
+              "python\\Lib\\site-packages\\numpy\\__init__.py",
+              "python\\numpy\\__init__.py",
               "offline-site-packages.zip"
             )
             foreach ($rel in $keyFiles) {
