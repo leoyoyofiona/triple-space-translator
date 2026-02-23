@@ -19,9 +19,7 @@ This is the Windows stable edition of your app.
 
 ## Windows UI Preview
 
-| Settings UI | Status UI |
-|---|---|
-| ![Windows Settings UI](../assets/screenshots/windows/windows-ui-status-1.png) | ![Windows Status UI](../assets/screenshots/windows/windows-ui-status-2.png) |
+![Windows API Settings UI](../assets/screenshots/windows/windows-ui-api-settings.png)
 
 ## Windows Translation Status (Important)
 

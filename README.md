@@ -36,9 +36,7 @@ Current highlights:
 
 ## Windows UI Preview
 
-| Settings Window | Runtime Status Window |
-|---|---|
-| ![Windows Settings UI](assets/screenshots/windows/windows-ui-status-1.png) | ![Windows Runtime Status](assets/screenshots/windows/windows-ui-status-2.png) |
+![Windows API Settings UI](assets/screenshots/windows/windows-ui-api-settings.png)
 
 ## How It Works
 
