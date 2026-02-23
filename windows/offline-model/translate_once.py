@@ -162,10 +162,12 @@ def _activate_user_site(current: pathlib.Path, all_candidates: list[pathlib.Path
 
 
 def ensure_argostranslate_available() -> None:
+    first_error = None
     try:
         import argostranslate.translate  # noqa: F401
         return
     except Exception as first_exc:
+        first_error = first_exc
         disable_self_heal = os.environ.get("TST_OFFLINE_DISABLE_SELF_HEAL", "").strip() == "1"
         if disable_self_heal:
             fail(f"argostranslate import failed (self-heal disabled): {first_exc}; sys.path={sys.path}")
@@ -212,7 +214,7 @@ def ensure_argostranslate_available() -> None:
     attempt_errors: list[str] = []
     for user_site_path in user_site_candidates:
         user_site = str(user_site_path)
-        candidate_error: Exception = first_exc
+        candidate_error: Exception = first_error if first_error is not None else RuntimeError("argostranslate import failed")
         try:
             _ensure_writable_dir(user_site_path)
         except Exception as writable_exc:
