@@ -7,14 +7,19 @@ Press triple-space again to toggle back to the previous language.
 
 ## Product Intro
 
-Triple Space Translator is a global input helper for fast bilingual writing.
+Triple Space Translator is a global bilingual typing helper built for speed.
 It keeps your thinking flow in chats, search boxes, and editors:
 
 - write first in your natural language
 - trigger translation with triple-space
 - continue typing without copy/paste context switching
 
-Current highlight:
+Why this matters:
+
+- especially when using global AI models, English prompts often get more stable understanding and output
+- you can keep your native-language thinking flow, then convert instantly when needed
+
+Current highlights:
 
 - macOS: system translation framework
 - Windows: built-in offline model by default (out-of-box, no API key, no network)
@@ -22,40 +27,33 @@ Current highlight:
   - Chinese -> English -> Chinese
   - English -> Chinese -> English
 
-## Demo
+## UI Preview
 
-Before (Chinese input):
+| Chinese input | After triple-space replacement |
+|---|---|
+| ![Before Translation](assets/screenshots/demo-zh-input.png) | ![After Translation](assets/screenshots/demo-en-output.png) |
 
-![Before Translation](assets/screenshots/demo-zh-input.png)
+## How It Works
 
-After (English replacement):
+1. Type naturally in any text field.
+2. Press `Space` 3 times within `0.5s`.
+3. The current text is translated and replaced in place.
+4. Press triple-space again to toggle back.
 
-![After Translation](assets/screenshots/demo-en-output.png)
+Best use cases:
 
-## Why this app
-
-When chatting with global AI models (ChatGPT / Claude / Grok / Gemini), English prompts often produce more stable understanding and output.  
-This app keeps your thinking flow: write in Chinese first, then trigger instant English replacement with triple-space.
-
-## Features
-
-- Triple-space trigger (`0.5s`, configurable on Windows)
-- Bidirectional round-trip toggle:
-  - Chinese -> English -> Chinese
-  - English -> Chinese -> English
-- Input replacement in common text fields
-- macOS + Windows download packages
-- iOS keyboard extension MVP available in repo
-- Translation providers:
-  - macOS / iOS: Apple Translation framework
-  - Windows default first-run: built-in offline model (no network, no API key)
-  - Windows: OpenAI or LibreTranslate (supports one-click local Docker mode)
+- AI chats (ChatGPT / Claude / Grok / Gemini)
+- browser search boxes
+- messaging and quick writing
+- notes and document drafting
 
 ## Downloads
 
-- Releases page:
+- All releases:
   - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- Download latest assets from the release page (`DMG/ZIP/EXE`).
+- Download assets from the latest release:
+  - macOS: `DMG / ZIP`
+  - Windows: `EXE` installer
 
 ## Platform Guides
 

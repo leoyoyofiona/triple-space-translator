@@ -7,12 +7,17 @@
 
 ## 产品介绍
 
-Triple Space Translator 是一个“不中断思路”的双语输入助手。
+Triple Space Translator 是一个“不中断思路”的双语输入助手，主打快、顺、无打断。
 适合聊天框、搜索框、文档编辑等场景：
 
 - 先按自己的语言快速输入
 - 三空格即时翻译并替换
 - 不用复制/粘贴，不打断表达节奏
+
+它特别适合和国外 AI 大模型交流时的输入习惯：
+
+- 英文提示词通常能获得更稳定的理解和输出
+- 但你可以继续先用中文思考和输入，再一键切成英文
 
 当前重点能力：
 
@@ -22,40 +27,33 @@ Triple Space Translator 是一个“不中断思路”的双语输入助手。
   - 中文 -> 英文 -> 中文
   - 英文 -> 中文 -> 英文
 
-## 效果展示
+## 界面展示
 
-翻译前（中文输入）：
+| 中文输入 | 三空格后英文替换 |
+|---|---|
+| ![翻译前中文输入](assets/screenshots/demo-zh-input.png) | ![翻译后英文输出](assets/screenshots/demo-en-output.png) |
 
-![翻译前中文输入](assets/screenshots/demo-zh-input.png)
+## 使用步骤
 
-翻译后（英文替换）：
+1. 在任意输入框正常输入中文或英文。
+2. 在 `0.5 秒` 内连按 `3 次空格`。
+3. 当前文本会立即翻译并原位替换。
+4. 再连按三空格，可切回上一轮语言。
 
-![翻译后英文输出](assets/screenshots/demo-en-output.png)
+常见使用场景：
 
-## 这个 App 解决什么问题
-
-在 ChatGPT / Claude / Grok / Gemini 等国际 AI 模型场景下，很多时候英文输入能获得更稳定的理解和输出。  
-这个工具让你保留中文思考习惯：先中文快速输入，再三空格一键替换成英文。
-
-## 功能特性
-
-- 三空格触发（`0.5 秒`，Windows 可配置）
-- 双向回切翻译：
-  - 中文 -> 英文 -> 中文
-  - 英文 -> 中文 -> 英文
-- 常见输入框文本替换
-- 提供 macOS + Windows 安装包
-- 仓库内含 iOS 自定义键盘 MVP
-- 翻译引擎：
-  - macOS / iOS：Apple 系统 Translation.framework
-  - Windows 首次安装默认：内置离线模型（无需网络、无需 API key）
-  - Windows：OpenAI 或 LibreTranslate（支持 Docker 本地一键模式）
+- ChatGPT / Claude / Grok / Gemini 等 AI 对话框
+- 浏览器搜索框
+- 微信等聊天输入框
+- 便签与文档快速写作
 
 ## 下载地址
 
 - Releases 总入口：
   - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- 最新安装包（`DMG/ZIP/EXE`）请直接在 Releases 页面下载。
+- 在最新 Release 中下载对应安装包：
+  - macOS：`DMG / ZIP`
+  - Windows：`EXE`
 
 ## 各平台说明
 
