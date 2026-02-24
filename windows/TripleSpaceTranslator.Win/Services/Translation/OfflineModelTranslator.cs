@@ -52,7 +52,7 @@ public sealed class OfflineModelTranslator : ITranslator
         startInfo.EnvironmentVariables["ARGOS_STANZA_AVAILABLE"] = "0";
         var pythonRoot = Path.Combine(AppContext.BaseDirectory, "offline-runtime", "python");
         var sitePackages = Path.Combine(pythonRoot, "Lib", "site-packages");
-        startInfo.EnvironmentVariables["PYTHONPATH"] = string.Join(";", new[] { pythonRoot, sitePackages, userSitePackages });
+        startInfo.EnvironmentVariables["PYTHONPATH"] = string.Join(";", new[] { sitePackages, pythonRoot });
         startInfo.EnvironmentVariables["TST_OFFLINE_USER_SITE"] = userSitePackages;
         if (Directory.Exists(seedHome))
         {

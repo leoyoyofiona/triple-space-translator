@@ -51,10 +51,10 @@ def bootstrap_bundled_site_packages() -> None:
     python_root = runtime_root / "python"
     extra_user_site = os.environ.get("TST_OFFLINE_USER_SITE", "").strip()
     candidates = [
-        pathlib.Path(extra_user_site) if extra_user_site else None,
         python_root / "Lib" / "site-packages",
         python_root,
         python_root / "python311.zip",
+        pathlib.Path(extra_user_site) if extra_user_site else None,
     ]
 
     for path in candidates:
@@ -203,10 +203,10 @@ def ensure_argostranslate_available() -> None:
     home_user_site = pathlib.Path(os.path.expanduser("~")) / ".triple-space-translator" / "site-packages"
     user_site_candidates = _dedupe_paths(
         [
-            pathlib.Path(primary_user_site),
-            pathlib.Path(alt_user_site) if alt_user_site else pathlib.Path(primary_user_site),
             fallback_base / "offline-site-packages",
             fallback_base / f"offline-site-packages-{os.getpid()}",
+            pathlib.Path(primary_user_site),
+            pathlib.Path(alt_user_site) if alt_user_site else pathlib.Path(primary_user_site),
             home_user_site,
         ]
     )
@@ -222,11 +222,20 @@ def ensure_argostranslate_available() -> None:
             continue
 
         # If previous runs wrote an incomplete environment, clear stale core folders first.
+        cleanup_failed: list[str] = []
         for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy"):
-            _remove_path_force(user_site_path / stale_name)
+            stale_target = user_site_path / stale_name
+            _remove_path_force(stale_target)
+            if stale_target.exists():
+                cleanup_failed.append(str(stale_target))
         for stale_glob in ("*.dist-info", "*.data"):
             for stale_path in user_site_path.glob(stale_glob):
                 _remove_path_force(stale_path)
+                if stale_path.exists():
+                    cleanup_failed.append(str(stale_path))
+        if cleanup_failed:
+            attempt_errors.append(f"user_site={user_site}; cleanup_failed={cleanup_failed}")
+            continue
 
         _activate_user_site(user_site_path, user_site_candidates)
         _clear_import_cache()

@@ -733,6 +733,21 @@ print(dst)
         $targetArgosPackage,
         $sitePackagesArchive
     )
+    $targetCtranslateDir = Join-Path $sitePackagesDir "ctranslate2"
+    $targetSentencepieceDir = Join-Path $sitePackagesDir "sentencepiece"
+    $targetNumpyDir = Join-Path $sitePackagesDir "numpy"
+    $ctranslateInit = Join-Path $targetCtranslateDir "__init__.py"
+    $ctranslateConverters = Join-Path $targetCtranslateDir "converters.py"
+    $sentencepieceInit = Join-Path $targetSentencepieceDir "__init__.py"
+    $numpyInit = Join-Path $targetNumpyDir "__init__.py"
+    $ctranslateExt = Get-ChildItem -Path $targetCtranslateDir -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $sentencepieceExt = Get-ChildItem -Path $targetSentencepieceDir -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $keyFiles += @(
+        $ctranslateInit,
+        $ctranslateConverters,
+        $sentencepieceInit,
+        $numpyInit
+    )
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
             $siteTop = ""
@@ -751,6 +766,12 @@ print(dst)
             }
             throw "Offline runtime key file missing at finalize stage: $f; site_top=$siteTop; root_top=$rootTop"
         }
+    }
+    if (-not $ctranslateExt) {
+        throw "Offline runtime key file missing at finalize stage: ctranslate2 _ext*.pyd not found under $targetCtranslateDir"
+    }
+    if (-not $sentencepieceExt) {
+        throw "Offline runtime key file missing at finalize stage: sentencepiece _sentencepiece*.pyd not found under $targetSentencepieceDir"
     }
 
     $finalVerifyCoreScriptPath = Join-Path $workDir "verify_offline_core_final.py"
