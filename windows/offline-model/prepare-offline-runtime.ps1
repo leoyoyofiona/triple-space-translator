@@ -427,11 +427,6 @@ try {
             PreferredPatterns = @("pyyaml-*-cp311-cp311-win_amd64.whl", "pyyaml-*-cp311-*-win_amd64.whl")
         },
         @{
-            Name = "sacremoses"
-            Version = "0.0.53"
-            PreferredPatterns = @("sacremoses-*-py3-none-any.whl")
-        },
-        @{
             Name = "packaging"
             Version = "24.2"
             PreferredPatterns = @("packaging-*-py3-none-any.whl")
@@ -475,14 +470,11 @@ try {
     $pyyamlWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "pyyaml-*.whl" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
-    $sacremosesWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "sacremoses-*.whl" -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
     $packagingWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "packaging-*.whl" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
 
-    if (-not $ctranslateWheel -or -not $sentencepieceWheel -or -not $numpyWheel -or -not $pyyamlWheel -or -not $sacremosesWheel -or -not $packagingWheel) {
+    if (-not $ctranslateWheel -or -not $sentencepieceWheel -or -not $numpyWheel -or -not $pyyamlWheel -or -not $packagingWheel) {
         $wheelDirList = ""
         try {
             $wheelDirList = (Get-ChildItem -Path $coreBootstrapWheelDir -Name -ErrorAction SilentlyContinue | Select-Object -First 50) -join ", "
@@ -490,7 +482,7 @@ try {
         catch {
             $wheelDirList = "<unavailable>"
         }
-        throw "Missing required core wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); numpy=$([bool]$numpyWheel); pyyaml=$([bool]$pyyamlWheel); sacremoses=$([bool]$sacremosesWheel); packaging=$([bool]$packagingWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
+        throw "Missing required core wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); numpy=$([bool]$numpyWheel); pyyaml=$([bool]$pyyamlWheel); packaging=$([bool]$packagingWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
     }
 
     Write-Step "Installing binary core wheels into bundled site-packages..."
@@ -505,7 +497,6 @@ try {
         $sentencepieceWheel.FullName,
         $numpyWheel.FullName,
         $pyyamlWheel.FullName,
-        $sacremosesWheel.FullName,
         $packagingWheel.FullName
     ) | Out-Null
 
@@ -574,7 +565,6 @@ for mod in mods:
         Expand-WheelToSite -wheelPath $sentencepieceWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("sentencepiece")
         Expand-WheelToSite -wheelPath $numpyWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("numpy", "numpy.libs")
         Expand-WheelToSite -wheelPath $pyyamlWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("yaml", "_yaml")
-        Expand-WheelToSite -wheelPath $sacremosesWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("sacremoses")
         Expand-WheelToSite -wheelPath $packagingWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("packaging")
     }
 
@@ -638,7 +628,6 @@ print("offline_runtime_core_import_ok")
         "sentencepiece==0.2.0",
         "numpy==1.26.4",
         "pyyaml==6.0.3",
-        "sacremoses==0.0.53",
         "packaging==24.2"
     )
     try {
@@ -649,7 +638,6 @@ print("offline_runtime_core_import_ok")
             (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "sacremoses-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "packaging-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
@@ -667,7 +655,6 @@ print("offline_runtime_core_import_ok")
                 (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue) -and
-                (Get-ChildItem -Path $wheelhouseDir -Filter "sacremoses-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "packaging-*.whl" -ErrorAction SilentlyContinue)) {
                 $wheelOk = $true
             }
@@ -699,7 +686,6 @@ print("offline_runtime_core_import_ok")
             (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "sacremoses-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "packaging-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
