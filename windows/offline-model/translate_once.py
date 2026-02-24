@@ -164,9 +164,18 @@ def _activate_user_site(current: pathlib.Path, all_candidates: list[pathlib.Path
 
 
 def ensure_argostranslate_available() -> None:
+    def _verify_runtime_imports() -> None:
+        import argostranslate.translate  # noqa: F401
+        import ctranslate2  # noqa: F401
+        import sentencepiece  # noqa: F401
+        import numpy  # noqa: F401
+        import yaml  # noqa: F401
+        import sacremoses  # noqa: F401
+        import packaging  # noqa: F401
+
     first_error = None
     try:
-        import argostranslate.translate  # noqa: F401
+        _verify_runtime_imports()
         return
     except Exception as first_exc:
         first_error = first_exc
@@ -248,7 +257,7 @@ def ensure_argostranslate_available() -> None:
                 shutil.copytree(bundled_site, user_site_path, dirs_exist_ok=True)
                 _activate_user_site(user_site_path, user_site_candidates)
                 _clear_import_cache()
-                import argostranslate.translate  # noqa: F401
+                _verify_runtime_imports()
                 return
             except Exception as bundled_copy_exc:
                 candidate_error = RuntimeError(f"{candidate_error}; bundled_copy={bundled_copy_exc}")
@@ -262,7 +271,7 @@ def ensure_argostranslate_available() -> None:
                     shutil.copytree(source_pkg, user_site_path / "argostranslate", dirs_exist_ok=True)
                     _activate_user_site(user_site_path, user_site_candidates)
                     _clear_import_cache()
-                    import argostranslate.translate  # noqa: F401
+                    _verify_runtime_imports()
                     return
                 except Exception as deep_copy_exc:
                     candidate_error = RuntimeError(f"{candidate_error}; deep_copy={deep_copy_exc}")
@@ -274,7 +283,7 @@ def ensure_argostranslate_available() -> None:
                     zf.extractall(user_site_path)
                 _activate_user_site(user_site_path, user_site_candidates)
                 _clear_import_cache()
-                import argostranslate.translate  # noqa: F401
+                _verify_runtime_imports()
                 return
             except Exception as archive_exc:
                 candidate_error = RuntimeError(f"{candidate_error}; archive_extract={archive_exc}")
@@ -287,7 +296,7 @@ def ensure_argostranslate_available() -> None:
                         zf.extractall(user_site_path)
                 _activate_user_site(user_site_path, user_site_candidates)
                 _clear_import_cache()
-                import argostranslate.translate  # noqa: F401
+                _verify_runtime_imports()
                 return
             except Exception as wheel_exc:
                 candidate_error = RuntimeError(f"{candidate_error}; wheel_extract={wheel_exc}")
@@ -318,7 +327,7 @@ def ensure_argostranslate_available() -> None:
                     "ctranslate2==4.7.1",
                     "sentencepiece==0.2.0",
                     "sacremoses==0.0.53",
-                    "packaging",
+                    "packaging==24.2",
                     "numpy==1.26.4",
                     "pyyaml==6.0.3",
                 ],
@@ -331,7 +340,7 @@ def ensure_argostranslate_available() -> None:
                 _activate_user_site(user_site_path, user_site_candidates)
                 _clear_import_cache()
                 try:
-                    import argostranslate.translate  # noqa: F401
+                    _verify_runtime_imports()
                     return
                 except Exception as second_exc:
                     candidate_error = RuntimeError(f"{candidate_error}; pip_import={second_exc}")
