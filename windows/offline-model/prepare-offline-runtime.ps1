@@ -99,6 +99,67 @@ function Download-WheelFromPyPI([string]$package, [string]$version, [string]$des
     return $wheelPath
 }
 
+function Expand-WheelToSite([string]$wheelPath, [string]$targetSite, [string[]]$primaryEntries) {
+    if (-not (Test-Path $wheelPath)) {
+        throw "Wheel not found for extraction: $wheelPath"
+    }
+    if (-not (Test-Path $targetSite)) {
+        New-Item -ItemType Directory -Force -Path $targetSite | Out-Null
+    }
+
+    $stageDir = Join-Path $workDir ("wheel-expand-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+    try {
+        $asZip = Join-Path $stageDir "payload.zip"
+        Copy-Item -Path $wheelPath -Destination $asZip -Force
+        Expand-Archive -Path $asZip -DestinationPath $stageDir -Force
+
+        $copiedPrimary = 0
+        foreach ($entry in $primaryEntries) {
+            $srcPath = Join-Path $stageDir $entry
+            if (Test-Path $srcPath) {
+                $dstPath = Join-Path $targetSite $entry
+                if (Test-Path $dstPath) {
+                    Remove-Item -Recurse -Force $dstPath -ErrorAction SilentlyContinue
+                }
+                Copy-Item -Path $srcPath -Destination $dstPath -Recurse -Force
+                $copiedPrimary += 1
+            }
+        }
+        if ($copiedPrimary -eq 0) {
+            $topEntries = ""
+            try {
+                $topEntries = (Get-ChildItem -Path $stageDir -Name -ErrorAction SilentlyContinue | Select-Object -First 120) -join ", "
+            }
+            catch {
+                $topEntries = "<unavailable>"
+            }
+            throw "Primary entries not found while extracting wheel $wheelPath; requested=$($primaryEntries -join ','); stage_top=$topEntries"
+        }
+
+        Get-ChildItem -Path $stageDir -Directory -Filter "*.dist-info" -ErrorAction SilentlyContinue | ForEach-Object {
+            $dst = Join-Path $targetSite $_.Name
+            if (Test-Path $dst) {
+                Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue
+            }
+            Copy-Item -Path $_.FullName -Destination $dst -Recurse -Force
+        }
+
+        Get-ChildItem -Path $stageDir -Directory -Filter "*.data" -ErrorAction SilentlyContinue | ForEach-Object {
+            $dst = Join-Path $targetSite $_.Name
+            if (Test-Path $dst) {
+                Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue
+            }
+            Copy-Item -Path $_.FullName -Destination $dst -Recurse -Force
+        }
+    }
+    finally {
+        if (Test-Path $stageDir) {
+            Remove-Item -Recurse -Force $stageDir -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 try {
     New-Item -ItemType Directory -Force -Path $workDir | Out-Null
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -469,22 +530,6 @@ for mod in mods:
 '@ | Set-Content -Path $normalizeDepsScriptPath -Encoding UTF8
     Invoke-Python @($normalizeDepsScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir; TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
-    $extractWheelScriptPath = Join-Path $workDir "extract_wheel.py"
-    @'
-import pathlib
-import sys
-import zipfile
-
-wheel = pathlib.Path(sys.argv[1]).resolve()
-target = pathlib.Path(sys.argv[2]).resolve()
-target.mkdir(parents=True, exist_ok=True)
-
-with zipfile.ZipFile(wheel, "r") as zf:
-    zf.extractall(target)
-
-print(f"EXTRACT_WHEEL_OK {wheel.name} -> {target}")
-'@ | Set-Content -Path $extractWheelScriptPath -Encoding UTF8
-
     $coreRequiredFiles = @(
         (Join-Path $sitePackagesDir "ctranslate2\__init__.py"),
         (Join-Path $sitePackagesDir "ctranslate2\converters\__init__.py"),
@@ -493,10 +538,10 @@ print(f"EXTRACT_WHEEL_OK {wheel.name} -> {target}")
     )
     $coreMissing = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
     if ($coreMissing.Count -gt 0) {
-        Write-Step "Core runtime files missing after pip install/normalize; extracting wheels directly..."
-        Invoke-Python @($extractWheelScriptPath, $ctranslateWheel.FullName, $sitePackagesDir) | Out-Null
-        Invoke-Python @($extractWheelScriptPath, $sentencepieceWheel.FullName, $sitePackagesDir) | Out-Null
-        Invoke-Python @($extractWheelScriptPath, $numpyWheel.FullName, $sitePackagesDir) | Out-Null
+        Write-Step "Core runtime files missing after pip install/normalize; extracting wheels with PowerShell fallback..."
+        Expand-WheelToSite -wheelPath $ctranslateWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("ctranslate2")
+        Expand-WheelToSite -wheelPath $sentencepieceWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("sentencepiece")
+        Expand-WheelToSite -wheelPath $numpyWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("numpy", "numpy.libs")
     }
 
     $coreMissingAfterExtract = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
