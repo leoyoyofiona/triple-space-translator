@@ -393,7 +393,6 @@ try {
         "sentencepiece==0.2.0",
         "numpy==1.26.4",
         "pyyaml==6.0.3",
-        "sacremoses==0.0.53",
         "packaging==24.2"
     )
     $runtimeDepArgs = @("-m", "pip", "install", "--target", $sitePackagesDir, "--upgrade", "--force-reinstall", "--ignore-installed") + $runtimeDeps
@@ -510,7 +509,7 @@ import shutil
 
 target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
 runtime_root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
-mods = ("ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging")
+mods = ("ctranslate2", "sentencepiece", "numpy", "yaml", "packaging")
 
 for mod in mods:
     spec = importlib.util.find_spec(mod)
@@ -555,7 +554,6 @@ for mod in mods:
         (Join-Path $sitePackagesDir "sentencepiece\__init__.py"),
         (Join-Path $sitePackagesDir "numpy\__init__.py"),
         (Join-Path $sitePackagesDir "yaml\__init__.py"),
-        (Join-Path $sitePackagesDir "sacremoses\__init__.py"),
         (Join-Path $sitePackagesDir "packaging\__init__.py")
     )
     $coreMissing = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
@@ -598,7 +596,6 @@ import ctranslate2  # noqa: F401
 import sentencepiece  # noqa: F401
 import numpy  # noqa: F401
 import yaml  # noqa: F401
-import sacremoses  # noqa: F401
 import argostranslate.translate as _t  # noqa: F401
 
 root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
@@ -614,7 +611,7 @@ def assert_in_runtime(name: str):
     assert candidates, f"{name} has no origin or package locations"
     assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"{name} outside runtime: {candidates}"
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "packaging"):
     assert_in_runtime(mod)
 print("offline_runtime_core_import_ok")
 '@ | Set-Content -Path $verifyCoreScriptPath -Encoding UTF8
@@ -759,7 +756,7 @@ _ = translation.translate("hello")
     }
 
     Write-Step "Ensuring core modules exist in bundled site-packages..."
-    $corePackages = @("ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging")
+    $corePackages = @("ctranslate2", "sentencepiece", "numpy", "yaml", "packaging")
     foreach ($pkg in $corePackages) {
         $siteDir = Join-Path $sitePackagesDir $pkg
         $rootDir = Join-Path $pythonDir $pkg
@@ -919,7 +916,7 @@ def assert_module_in_runtime(name: str):
         raise RuntimeError(f"{name} is outside runtime root: {candidates}")
     return candidates[0]
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "packaging"):
     loc = assert_module_in_runtime(mod)
     print(f"FINAL_CORE_OK {mod} {loc}")
 '@ | Set-Content -Path $finalVerifyCoreScriptPath -Encoding UTF8

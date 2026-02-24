@@ -170,7 +170,6 @@ def ensure_argostranslate_available() -> None:
         import sentencepiece  # noqa: F401
         import numpy  # noqa: F401
         import yaml  # noqa: F401
-        import sacremoses  # noqa: F401
         import packaging  # noqa: F401
 
     first_error = None
