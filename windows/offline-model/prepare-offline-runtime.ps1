@@ -469,6 +469,48 @@ for mod in mods:
 '@ | Set-Content -Path $normalizeDepsScriptPath -Encoding UTF8
     Invoke-Python @($normalizeDepsScriptPath) @{ TST_TARGET_SITE = $sitePackagesDir; TST_RUNTIME_ROOT = $pythonDir } | Out-Null
 
+    $extractWheelScriptPath = Join-Path $workDir "extract_wheel.py"
+    @'
+import pathlib
+import sys
+import zipfile
+
+wheel = pathlib.Path(sys.argv[1]).resolve()
+target = pathlib.Path(sys.argv[2]).resolve()
+target.mkdir(parents=True, exist_ok=True)
+
+with zipfile.ZipFile(wheel, "r") as zf:
+    zf.extractall(target)
+
+print(f"EXTRACT_WHEEL_OK {wheel.name} -> {target}")
+'@ | Set-Content -Path $extractWheelScriptPath -Encoding UTF8
+
+    $coreRequiredFiles = @(
+        (Join-Path $sitePackagesDir "ctranslate2\__init__.py"),
+        (Join-Path $sitePackagesDir "ctranslate2\converters\__init__.py"),
+        (Join-Path $sitePackagesDir "sentencepiece\__init__.py"),
+        (Join-Path $sitePackagesDir "numpy\__init__.py")
+    )
+    $coreMissing = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
+    if ($coreMissing.Count -gt 0) {
+        Write-Step "Core runtime files missing after pip install/normalize; extracting wheels directly..."
+        Invoke-Python @($extractWheelScriptPath, $ctranslateWheel.FullName, $sitePackagesDir) | Out-Null
+        Invoke-Python @($extractWheelScriptPath, $sentencepieceWheel.FullName, $sitePackagesDir) | Out-Null
+        Invoke-Python @($extractWheelScriptPath, $numpyWheel.FullName, $sitePackagesDir) | Out-Null
+    }
+
+    $coreMissingAfterExtract = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
+    if ($coreMissingAfterExtract.Count -gt 0) {
+        $siteTop = ""
+        try {
+            $siteTop = (Get-ChildItem -Path $sitePackagesDir -Name -ErrorAction SilentlyContinue | Select-Object -First 120) -join ", "
+        }
+        catch {
+            $siteTop = "<unavailable>"
+        }
+        throw "Core runtime files still missing after wheel extraction fallback: $($coreMissingAfterExtract -join '; '); site_top=$siteTop"
+    }
+
     $verifyCoreScriptPath = Join-Path $workDir "verify_offline_core.py"
     @'
 import importlib.util
