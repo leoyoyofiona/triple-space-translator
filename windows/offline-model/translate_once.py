@@ -88,7 +88,9 @@ def bootstrap_seed_home() -> None:
 
 
 def _clear_import_cache() -> None:
-    prefixes = ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy")
+    # Keep binary extension modules (e.g. ctranslate2/sentencepiece) loaded in-process.
+    # Re-importing them from a different path can trigger "type ... is already registered".
+    prefixes = ("argostranslate", "sacremoses", "packaging", "numpy", "yaml")
     for name in list(sys.modules.keys()):
         for prefix in prefixes:
             if name == prefix or name.startswith(prefix + "."):
@@ -223,7 +225,7 @@ def ensure_argostranslate_available() -> None:
 
         # If previous runs wrote an incomplete environment, clear stale core folders first.
         cleanup_failed: list[str] = []
-        for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy"):
+        for stale_name in ("argostranslate", "ctranslate2", "sentencepiece", "sacremoses", "packaging", "numpy", "yaml"):
             stale_target = user_site_path / stale_name
             _remove_path_force(stale_target)
             if stale_target.exists():
@@ -318,6 +320,7 @@ def ensure_argostranslate_available() -> None:
                     "sacremoses==0.0.53",
                     "packaging",
                     "numpy==1.26.4",
+                    "pyyaml==6.0.3",
                 ],
                 capture_output=True,
                 text=True,

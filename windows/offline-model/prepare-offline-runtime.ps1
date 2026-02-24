@@ -392,6 +392,7 @@ try {
         "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
         "numpy==1.26.4",
+        "pyyaml==6.0.3",
         "sacremoses==0.0.53",
         "packaging"
     )
@@ -419,6 +420,11 @@ try {
             Name = "numpy"
             Version = "1.26.4"
             PreferredPatterns = @("numpy-*-cp311-cp311-win_amd64.whl", "numpy-*-cp311-*-win_amd64.whl")
+        },
+        @{
+            Name = "pyyaml"
+            Version = "6.0.3"
+            PreferredPatterns = @("pyyaml-*-cp311-cp311-win_amd64.whl", "pyyaml-*-cp311-*-win_amd64.whl")
         }
     )
     foreach ($target in $coreBinaryTargets) {
@@ -456,8 +462,11 @@ try {
     $numpyWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "numpy-*.whl" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
+    $pyyamlWheel = Get-ChildItem -Path $coreBootstrapWheelDir -Filter "pyyaml-*.whl" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
 
-    if (-not $ctranslateWheel -or -not $sentencepieceWheel -or -not $numpyWheel) {
+    if (-not $ctranslateWheel -or -not $sentencepieceWheel -or -not $numpyWheel -or -not $pyyamlWheel) {
         $wheelDirList = ""
         try {
             $wheelDirList = (Get-ChildItem -Path $coreBootstrapWheelDir -Name -ErrorAction SilentlyContinue | Select-Object -First 50) -join ", "
@@ -465,7 +474,7 @@ try {
         catch {
             $wheelDirList = "<unavailable>"
         }
-        throw "Missing required core binary wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); numpy=$([bool]$numpyWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
+        throw "Missing required core binary wheel(s). ctranslate2=$([bool]$ctranslateWheel); sentencepiece=$([bool]$sentencepieceWheel); numpy=$([bool]$numpyWheel); pyyaml=$([bool]$pyyamlWheel); core-wheelhouse=$coreBootstrapWheelDir; files=$wheelDirList"
     }
 
     Write-Step "Installing binary core wheels into bundled site-packages..."
@@ -478,7 +487,8 @@ try {
         "--ignore-installed",
         $ctranslateWheel.FullName,
         $sentencepieceWheel.FullName,
-        $numpyWheel.FullName
+        $numpyWheel.FullName,
+        $pyyamlWheel.FullName
     ) | Out-Null
 
     Write-Step "Normalizing core runtime dependency locations into site-packages..."
@@ -491,7 +501,7 @@ import shutil
 
 target_site = pathlib.Path(os.environ["TST_TARGET_SITE"]).resolve()
 runtime_root = pathlib.Path(os.environ["TST_RUNTIME_ROOT"]).resolve()
-mods = ("ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging")
+mods = ("ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging")
 
 for mod in mods:
     spec = importlib.util.find_spec(mod)
@@ -534,7 +544,8 @@ for mod in mods:
         (Join-Path $sitePackagesDir "ctranslate2\__init__.py"),
         (Join-Path $sitePackagesDir "ctranslate2\converters\__init__.py"),
         (Join-Path $sitePackagesDir "sentencepiece\__init__.py"),
-        (Join-Path $sitePackagesDir "numpy\__init__.py")
+        (Join-Path $sitePackagesDir "numpy\__init__.py"),
+        (Join-Path $sitePackagesDir "yaml\__init__.py")
     )
     $coreMissing = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
     if ($coreMissing.Count -gt 0) {
@@ -542,6 +553,7 @@ for mod in mods:
         Expand-WheelToSite -wheelPath $ctranslateWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("ctranslate2")
         Expand-WheelToSite -wheelPath $sentencepieceWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("sentencepiece")
         Expand-WheelToSite -wheelPath $numpyWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("numpy", "numpy.libs")
+        Expand-WheelToSite -wheelPath $pyyamlWheel.FullName -targetSite $sitePackagesDir -primaryEntries @("yaml", "_yaml")
     }
 
     $coreMissingAfterExtract = @($coreRequiredFiles | Where-Object { -not (Test-Path $_) })
@@ -573,6 +585,7 @@ if importlib.util.find_spec("stanza") is None:
 import ctranslate2  # noqa: F401
 import sentencepiece  # noqa: F401
 import numpy  # noqa: F401
+import yaml  # noqa: F401
 import sacremoses  # noqa: F401
 import argostranslate.translate as _t  # noqa: F401
 
@@ -589,7 +602,7 @@ def assert_in_runtime(name: str):
     assert candidates, f"{name} has no origin or package locations"
     assert any(str(p).lower().startswith(str(root).lower()) for p in candidates), f"{name} outside runtime: {candidates}"
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging"):
     assert_in_runtime(mod)
 print("offline_runtime_core_import_ok")
 '@ | Set-Content -Path $verifyCoreScriptPath -Encoding UTF8
@@ -602,6 +615,7 @@ print("offline_runtime_core_import_ok")
         "ctranslate2==4.7.1",
         "sentencepiece==0.2.0",
         "numpy==1.26.4",
+        "pyyaml==6.0.3",
         "sacremoses==0.0.53",
         "packaging"
     )
@@ -611,7 +625,8 @@ print("offline_runtime_core_import_ok")
         if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
+            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
     }
@@ -626,7 +641,8 @@ print("offline_runtime_core_import_ok")
             if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
                 (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
-                (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
+                (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
+                (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue)) {
                 $wheelOk = $true
             }
         }
@@ -655,7 +671,8 @@ print("offline_runtime_core_import_ok")
         if ((Get-ChildItem -Path $wheelhouseDir -Filter "argostranslate-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "ctranslate2-*.whl" -ErrorAction SilentlyContinue) -and
             (Get-ChildItem -Path $wheelhouseDir -Filter "sentencepiece-*.whl" -ErrorAction SilentlyContinue) -and
-            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue)) {
+            (Get-ChildItem -Path $wheelhouseDir -Filter "numpy-*.whl" -ErrorAction SilentlyContinue) -and
+            (Get-ChildItem -Path $wheelhouseDir -Filter "pyyaml-*.whl" -ErrorAction SilentlyContinue)) {
             $wheelOk = $true
         }
     }
@@ -728,7 +745,7 @@ _ = translation.translate("hello")
     }
 
     Write-Step "Ensuring core modules exist in bundled site-packages..."
-    $corePackages = @("ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging")
+    $corePackages = @("ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging")
     foreach ($pkg in $corePackages) {
         $siteDir = Join-Path $sitePackagesDir $pkg
         $rootDir = Join-Path $pythonDir $pkg
@@ -823,17 +840,20 @@ print(dst)
     $targetCtranslateDir = Join-Path $sitePackagesDir "ctranslate2"
     $targetSentencepieceDir = Join-Path $sitePackagesDir "sentencepiece"
     $targetNumpyDir = Join-Path $sitePackagesDir "numpy"
+    $targetYamlDir = Join-Path $sitePackagesDir "yaml"
     $ctranslateInit = Join-Path $targetCtranslateDir "__init__.py"
     $ctranslateConverters = Join-Path $targetCtranslateDir "converters\__init__.py"
     $sentencepieceInit = Join-Path $targetSentencepieceDir "__init__.py"
     $numpyInit = Join-Path $targetNumpyDir "__init__.py"
+    $yamlInit = Join-Path $targetYamlDir "__init__.py"
     $ctranslateExt = Get-ChildItem -Path $targetCtranslateDir -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
     $sentencepieceExt = Get-ChildItem -Path $targetSentencepieceDir -Filter "_sentencepiece*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
     $keyFiles += @(
         $ctranslateInit,
         $ctranslateConverters,
         $sentencepieceInit,
-        $numpyInit
+        $numpyInit,
+        $yamlInit
     )
     foreach ($f in $keyFiles) {
         if (-not (Test-Path $f)) {
@@ -885,7 +905,7 @@ def assert_module_in_runtime(name: str):
         raise RuntimeError(f"{name} is outside runtime root: {candidates}")
     return candidates[0]
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging"):
     loc = assert_module_in_runtime(mod)
     print(f"FINAL_CORE_OK {mod} {loc}")
 '@ | Set-Content -Path $finalVerifyCoreScriptPath -Encoding UTF8

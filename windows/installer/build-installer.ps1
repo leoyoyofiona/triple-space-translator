@@ -212,7 +212,7 @@ def check(name: str):
     if not any(str(p).lower().startswith(str(runtime_root).lower()) for p in candidates):
         raise RuntimeError(f"{name} outside runtime root: {candidates}")
 
-for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "sacremoses", "packaging"):
+for mod in ("argostranslate", "ctranslate2", "sentencepiece", "numpy", "yaml", "sacremoses", "packaging"):
     check(mod)
 '@ | Set-Content -Path $verifyCoreDepsScript -Encoding UTF8
 
