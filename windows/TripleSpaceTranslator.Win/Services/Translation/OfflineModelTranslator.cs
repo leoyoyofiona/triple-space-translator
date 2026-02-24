@@ -10,6 +10,7 @@ public sealed class OfflineModelTranslator : ITranslator
         var pythonExe = ResolvePythonExecutablePath();
         var scriptPath = ResolveScriptPath();
         var seedHome = ResolveSeedHomePath();
+        var seedPackages = Path.Combine(seedHome, ".local", "share", "argos-translate", "packages");
         var offlineHome = ResolveOfflineHomePath();
         var userSitePackages = ResolveUserSitePackagesPath();
 
@@ -57,6 +58,12 @@ public sealed class OfflineModelTranslator : ITranslator
         if (Directory.Exists(seedHome))
         {
             startInfo.EnvironmentVariables["TST_OFFLINE_SEED_HOME"] = seedHome;
+        }
+        if (Directory.Exists(seedPackages))
+        {
+            // Prefer bundled read-only model packages to avoid stale/incomplete user cache.
+            startInfo.EnvironmentVariables["ARGOS_PACKAGES_DIR"] = seedPackages;
+            startInfo.EnvironmentVariables["ARGOS_TRANSLATE_PACKAGES_DIR"] = seedPackages;
         }
 
         using var process = new Process { StartInfo = startInfo };

@@ -64,7 +64,35 @@ def bootstrap_bundled_site_packages() -> None:
                 sys.path.insert(0, value)
 
 
+def _argos_packages_dir(base_home: pathlib.Path) -> pathlib.Path:
+    return base_home / ".local" / "share" / "argos-translate" / "packages"
+
+
+def _has_required_zh_en_packages(packages_dir: pathlib.Path) -> bool:
+    if not packages_dir.exists():
+        return False
+    try:
+        names = [p.name for p in packages_dir.iterdir() if p.is_dir()]
+    except OSError:
+        return False
+    has_zh_en = any(name.startswith("translate-zh_en") for name in names)
+    has_en_zh = any(name.startswith("translate-en_zh") for name in names)
+    return has_zh_en and has_en_zh
+
+
+def _set_argos_packages_env(packages_dir: pathlib.Path) -> None:
+    value = str(packages_dir)
+    os.environ["ARGOS_PACKAGES_DIR"] = value
+    os.environ["ARGOS_TRANSLATE_PACKAGES_DIR"] = value
+
+
 def bootstrap_seed_home() -> None:
+    user_home = pathlib.Path(os.path.expanduser("~"))
+    target_packages = _argos_packages_dir(user_home)
+    if _has_required_zh_en_packages(target_packages):
+        _set_argos_packages_env(target_packages)
+        return
+
     seed_home = os.environ.get("TST_OFFLINE_SEED_HOME", "").strip()
     if not seed_home:
         return
@@ -73,18 +101,24 @@ def bootstrap_seed_home() -> None:
     if not seed_path.exists():
         return
 
-    user_home = pathlib.Path(os.path.expanduser("~"))
-    target_packages = user_home / ".local" / "share" / "argos-translate" / "packages"
-    need_copy = not target_packages.exists() or not any(target_packages.iterdir())
-    if not need_copy:
-        return
+    seed_packages = _argos_packages_dir(seed_path)
+    if _has_required_zh_en_packages(seed_packages):
+        # Prefer using bundled seed models directly so old/partial user cache does not break translation.
+        _set_argos_packages_env(seed_packages)
 
     seed_local = seed_path / ".local"
     seed_config = seed_path / ".config"
-    if seed_local.exists():
-        shutil.copytree(seed_local, user_home / ".local", dirs_exist_ok=True)
-    if seed_config.exists():
-        shutil.copytree(seed_config, user_home / ".config", dirs_exist_ok=True)
+    try:
+        if seed_local.exists():
+            shutil.copytree(seed_local, user_home / ".local", dirs_exist_ok=True)
+        if seed_config.exists():
+            shutil.copytree(seed_config, user_home / ".config", dirs_exist_ok=True)
+    except OSError:
+        # Keep using seed path via ARGOS_PACKAGES_DIR if user-home copy is blocked.
+        return
+
+    if _has_required_zh_en_packages(target_packages):
+        _set_argos_packages_env(target_packages)
 
 
 def _clear_import_cache() -> None:
@@ -401,10 +435,22 @@ def main() -> int:
 
     try:
         installed = argostranslate.translate.get_installed_languages()
+        installed_codes = [str(getattr(x, "code", "")) for x in installed]
         from_lang = next((x for x in installed if normalize_lang(getattr(x, "code", "")) == source), None)
         to_lang = next((x for x in installed if normalize_lang(getattr(x, "code", "")) == target), None)
         if from_lang is None or to_lang is None:
-            fail("Offline language packages not installed for zh<->en")
+            env_pkg = os.environ.get("ARGOS_PACKAGES_DIR", "").strip() or os.environ.get("ARGOS_TRANSLATE_PACKAGES_DIR", "").strip()
+            packages_dir = pathlib.Path(env_pkg) if env_pkg else _argos_packages_dir(pathlib.Path(os.path.expanduser("~")))
+            entries: list[str] = []
+            if packages_dir.exists():
+                try:
+                    entries = sorted([p.name for p in packages_dir.iterdir()])[:30]
+                except OSError as list_exc:
+                    entries = [f"<list-error:{list_exc}>"]
+            fail(
+                "Offline language packages not installed for zh<->en; "
+                f"installed_codes={installed_codes}; packages_dir={packages_dir}; entries={entries}"
+            )
 
         translation = from_lang.get_translation(to_lang)
         translated = translation.translate(text)
