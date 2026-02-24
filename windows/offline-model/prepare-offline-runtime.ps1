@@ -824,7 +824,7 @@ print(dst)
     $targetSentencepieceDir = Join-Path $sitePackagesDir "sentencepiece"
     $targetNumpyDir = Join-Path $sitePackagesDir "numpy"
     $ctranslateInit = Join-Path $targetCtranslateDir "__init__.py"
-    $ctranslateConverters = Join-Path $targetCtranslateDir "converters.py"
+    $ctranslateConverters = Join-Path $targetCtranslateDir "converters\__init__.py"
     $sentencepieceInit = Join-Path $targetSentencepieceDir "__init__.py"
     $numpyInit = Join-Path $targetNumpyDir "__init__.py"
     $ctranslateExt = Get-ChildItem -Path $targetCtranslateDir -Filter "_ext*.pyd" -File -ErrorAction SilentlyContinue | Select-Object -First 1
