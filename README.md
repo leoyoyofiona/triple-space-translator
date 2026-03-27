@@ -17,7 +17,9 @@
   </p>
 </div>
 
-![Round-trip Demo](assets/screenshots/demo-roundtrip.gif)
+![GitHub Hero](assets/marketing/github-hero.png)
+
+![Live Demo](assets/screenshots/demo-live-roundtrip.gif)
 
 Triple Space Translator is a bilingual typing companion for AI chats, browser search boxes, and everyday editors.  
 Type in Chinese or English, press `Space` `3` times within `0.5s`, and the current text is translated and replaced in place. Press triple-space again to toggle back.
@@ -56,6 +58,11 @@ Type in Chinese or English, press `Space` `3` times within `0.5s`, and the curre
 - Full releases page: [github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
 - macOS package: download the `DMG` or `ZIP` asset from the latest release.
 - Windows package: download the `EXE` installer from the latest release.
+
+## Release Copy
+
+- English release note draft: [release-assets/release-note-en.md](release-assets/release-note-en.md)
+- Chinese release note draft: [release-assets/release-note-zh-CN.md](release-assets/release-note-zh-CN.md)
 
 ## Best Use Cases
 
