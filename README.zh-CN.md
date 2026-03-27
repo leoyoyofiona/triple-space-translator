@@ -1,97 +1,82 @@
-# Triple Space Translator（中文说明）
+# Triple Space Translator
 
-语言: [English](README.md) | **中文**
+<div align="center">
+  <p><strong>三连空格，中文英文原位切换。</strong></p>
+  <p>
+    <a href="README.md">English</a> ·
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.ja-JP.md">日本語</a>
+  </p>
+  <p>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/leoyoyofiona/triple-space-translator?display_name=tag&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/releases"><img alt="下载量" src="https://img.shields.io/github/downloads/leoyoyofiona/triple-space-translator/total?label=%E7%B4%AF%E8%AE%A1%E4%B8%8B%E8%BD%BD"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-macos-installer.yml"><img alt="macOS 打包" src="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-macos-installer.yml/badge.svg"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-windows-installer.yml"><img alt="Windows 打包" src="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-windows-installer.yml/badge.svg"></a>
+    <a href="https://www.apple.com/macos/"><img alt="macOS" src="https://img.shields.io/badge/macOS-Translation.framework-111827?logo=apple"></a>
+    <a href="windows/README-Windows.md"><img alt="Windows" src="https://img.shields.io/badge/Windows-%E5%BD%93%E5%89%8D%E7%A8%B3%E5%AE%9A%E7%89%88%E6%94%AF%E6%8C%81%20API%20%E7%BF%BB%E8%AF%91-0F6CBD?logo=windows"></a>
+  </p>
+</div>
 
-在任意输入框输入中文或英文后，在 `0.5 秒` 内连按 `3 次空格`，即可原位翻译并替换。
-再次连按三空格，可回切到上一轮语言。
+![往返切换演示](assets/screenshots/demo-roundtrip.gif)
 
-## 产品介绍
+Triple Space Translator 是一个面向聊天框、搜索框、文档编辑器的双语输入助手。  
+在任意输入框输入中文或英文后，在 `0.5 秒` 内连按 `3 次空格`，当前文本会被即时翻译并原位替换。再次三连空格，可以切回上一轮语言。
 
-Triple Space Translator 是一个“不中断思路”的双语输入助手，主打快、顺、无打断。
-适合聊天框、搜索框、文档编辑等场景：
+## 为什么它有吸引力
 
-- 先按自己的语言快速输入
-- 三空格即时翻译并替换
-- 不用复制/粘贴，不打断表达节奏
+- 先按你最自然的语言写，再在需要时瞬间切换。
+- 省掉“输入 -> 复制 -> 打开翻译器 -> 粘贴 -> 再复制回来”的来回折腾。
+- 特别适合和国外 AI 大模型交流时使用：你可以继续用中文思考，但在同一个输入框里快速切成英文。
+- 不打断思路，不离开当前窗口。
 
-它特别适合和国外 AI 大模型交流时的输入习惯：
+## 快速预览
 
-- 英文提示词通常能获得更稳定的理解和输出
-- 但你可以继续先用中文思考和输入，再一键切成英文
-
-当前重点能力：
-
-- macOS：使用系统 Translation.framework
-- Windows：当前可用在线 API 翻译（需设置 API key，可能有一定延迟）
-- Windows：因系统层面不像 macOS 有同等内置词典翻译通道，离线打包词典/模型功能仍在开发完善中
-- 双向回切：
-  - 中文 -> 英文 -> 中文
-  - 英文 -> 中文 -> 英文
-
-## 界面展示
-
-| 中文输入 | 三空格后英文替换 |
+| 中文输入 | 三连空格后切成英文 |
 |---|---|
-| ![翻译前中文输入](assets/screenshots/demo-zh-input.png) | ![翻译后英文输出](assets/screenshots/demo-en-output.png) |
+| ![中文输入](assets/screenshots/demo-zh-input.png) | ![英文输出](assets/screenshots/demo-en-output.png) |
 
-## Windows 界面预览
+## 截图
+
+### Windows 设置界面
 
 ![Windows API 设置界面](assets/screenshots/windows/windows-ui-api-settings.png)
 
-## Windows 当前翻译状态
+## 平台状态
 
-- Windows 稳定版当前主要使用在线 API 翻译。
-- 需要在应用设置中填写 API key。
-- 在线翻译会受网络影响，存在一定延迟。
-- 离线打包词典/模型模式仍在持续开发和完善中。
+| 平台 | 当前状态 | 翻译方式 |
+|---|---|---|
+| macOS | 可用 | Apple `Translation.framework` |
+| Windows | 可用 | 稳定版当前支持在线 API 翻译 |
+| Windows 离线模式 | 开发中 | 内置 Argos 模型打包仍在完善 |
+| iPhone 键盘 MVP | 实验中 | 独立 iOS 项目与说明 |
 
-## 使用步骤
+## 下载方式
 
-1. 在任意输入框正常输入中文或英文。
-2. 在 `0.5 秒` 内连按 `3 次空格`。
-3. 当前文本会立即翻译并原位替换。
-4. 再连按三空格，可切回上一轮语言。
+- 最新版本入口：[github.com/leoyoyofiona/triple-space-translator/releases/latest](https://github.com/leoyoyofiona/triple-space-translator/releases/latest)
+- 全部 Releases：[github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
+- macOS：在最新 Release 中下载 `DMG` 或 `ZIP`
+- Windows：在最新 Release 中下载 `EXE` 安装包
 
-常见使用场景：
+## 适合哪些场景
 
-- ChatGPT / Claude / Grok / Gemini 等 AI 对话框
+- ChatGPT、Claude、Grok、Gemini 等 AI 对话框
 - 浏览器搜索框
 - 微信等聊天输入框
-- 便签与文档快速写作
+- 便签、提示词、短文档草稿
 
-## 下载地址
+## 说明
 
-- Releases 总入口：
-  - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- 在最新 Release 中下载对应安装包：
-  - macOS：`DMG / ZIP`
-  - Windows：`EXE`
+- 部分 App 或受保护输入控件可能限制直接替换。
+- macOS 和 iOS 首次使用某个语言对时，Apple 可能会自动下载语言资源。
+- Windows 当前稳定版主要依赖在线 API 翻译，因此会受网络和接口速度影响。
+- Windows 内置离线模型模式仍在开发中，目前不作为稳定主推方案。
 
-## 各平台说明
+## 详细说明
 
-- Windows 详细说明：
-  - `windows/README-Windows.md`
-- iOS 自定义键盘 MVP 说明：
-  - `ios/README-iOS.md`
+- Windows 说明：[windows/README-Windows.md](windows/README-Windows.md)
+- iOS 键盘 MVP：[ios/README-iOS.md](ios/README-iOS.md)
 
-## macOS 本地运行
+## 自动打包
 
-1. 用 Xcode 以 Swift Package 方式打开本项目目录。
-2. 运行可执行目标 `TripleSpaceTranslatorApp`（`My Mac`）。
-3. 在 App 界面授权：
-   - Accessibility
-   - Input Monitoring
-4. 首次授权后建议重启 App。
-
-## 注意事项
-
-- 部分 App / 输入控件可能限制直接替换。
-- macOS / iOS 首次语言对翻译可能触发 Apple 语言资源下载。
-- Windows 某些受保护应用中，如替换失败可尝试管理员权限运行。
-
-## 自动打包流程
-
-- macOS 打包工作流：
-  - `.github/workflows/build-macos-installer.yml`
-- Windows 安装包工作流：
-  - `.github/workflows/build-windows-installer.yml`
+- macOS 打包工作流：[.github/workflows/build-macos-installer.yml](.github/workflows/build-macos-installer.yml)
+- Windows 打包工作流：[.github/workflows/build-windows-installer.yml](.github/workflows/build-windows-installer.yml)

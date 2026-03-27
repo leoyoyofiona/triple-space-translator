@@ -1,96 +1,82 @@
 # Triple Space Translator
 
-Language: **English** | [中文](README.zh-CN.md)
+<div align="center">
+  <p><strong>Press Space three times. Toggle Chinese and English in place.</strong></p>
+  <p>
+    <a href="README.md">English</a> ·
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.ja-JP.md">日本語</a>
+  </p>
+  <p>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/leoyoyofiona/triple-space-translator?display_name=tag"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/leoyoyofiona/triple-space-translator/total"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-macos-installer.yml"><img alt="Build macOS" src="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-macos-installer.yml/badge.svg"></a>
+    <a href="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-windows-installer.yml"><img alt="Build Windows" src="https://github.com/leoyoyofiona/triple-space-translator/actions/workflows/build-windows-installer.yml/badge.svg"></a>
+    <a href="https://www.apple.com/macos/"><img alt="macOS" src="https://img.shields.io/badge/macOS-Translation.framework-111827?logo=apple"></a>
+    <a href="windows/README-Windows.md"><img alt="Windows" src="https://img.shields.io/badge/Windows-API%20translation%20available-0F6CBD?logo=windows"></a>
+  </p>
+</div>
 
-Type in Chinese or English, then press `Space` 3 times within `0.5s` to translate and replace in place.
-Press triple-space again to toggle back to the previous language.
+![Round-trip Demo](assets/screenshots/demo-roundtrip.gif)
 
-## Product Intro
+Triple Space Translator is a bilingual typing companion for AI chats, browser search boxes, and everyday editors.  
+Type in Chinese or English, press `Space` `3` times within `0.5s`, and the current text is translated and replaced in place. Press triple-space again to toggle back.
 
-Triple Space Translator is a global bilingual typing helper built for speed.
-It keeps your thinking flow in chats, search boxes, and editors:
+## Why It Feels Useful
 
-- write first in your natural language
-- trigger translation with triple-space
-- continue typing without copy/paste context switching
+- Keep thinking in your natural language, then convert only when needed.
+- Skip the old flow of typing, copying, opening a translator, pasting, and coming back.
+- Stay in the same input box while talking to ChatGPT, Claude, Grok, Gemini, or other global AI tools.
+- Use English when you want more stable parsing and output from international AI models, without losing your original Chinese drafting flow.
 
-Why this matters:
-
-- especially when using global AI models, English prompts often get more stable understanding and output
-- you can keep your native-language thinking flow, then convert instantly when needed
-
-Current highlights:
-
-- macOS: system translation framework
-- Windows: online API translation is available now (set API key in app settings; may have some latency)
-- Windows offline bundled dictionary/model mode is under active development
-- Bidirectional round-trip toggle:
-  - Chinese -> English -> Chinese
-  - English -> Chinese -> English
-
-## UI Preview
+## Quick Preview
 
 | Chinese input | After triple-space replacement |
 |---|---|
-| ![Before Translation](assets/screenshots/demo-zh-input.png) | ![After Translation](assets/screenshots/demo-en-output.png) |
+| ![Chinese input](assets/screenshots/demo-zh-input.png) | ![English output](assets/screenshots/demo-en-output.png) |
 
-## Windows UI Preview
+## Screenshots
 
-![Windows API Settings UI](assets/screenshots/windows/windows-ui-api-settings.png)
+### Windows Settings
 
-## How It Works
+![Windows API settings](assets/screenshots/windows/windows-ui-api-settings.png)
 
-1. Type naturally in any text field.
-2. Press `Space` 3 times within `0.5s`.
-3. The current text is translated and replaced in place.
-4. Press triple-space again to toggle back.
+## Platform Status
 
-Best use cases:
-
-- AI chats (ChatGPT / Claude / Grok / Gemini)
-- browser search boxes
-- messaging and quick writing
-- notes and document drafting
+| Platform | Status | Translation path |
+|---|---|---|
+| macOS | Ready | Apple `Translation.framework` |
+| Windows | Ready | Online API translation in the stable build |
+| Windows offline mode | In progress | Bundled Argos model package is still being completed |
+| iPhone keyboard MVP | Experimental | Separate iOS project and guide |
 
 ## Downloads
 
-- All releases:
-  - [https://github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
-- Download assets from the latest release:
-  - macOS: `DMG / ZIP`
-  - Windows: `EXE` installer
+- Latest release: [github.com/leoyoyofiona/triple-space-translator/releases/latest](https://github.com/leoyoyofiona/triple-space-translator/releases/latest)
+- Full releases page: [github.com/leoyoyofiona/triple-space-translator/releases](https://github.com/leoyoyofiona/triple-space-translator/releases)
+- macOS package: download the `DMG` or `ZIP` asset from the latest release.
+- Windows package: download the `EXE` installer from the latest release.
 
-## Windows Translation Status
+## Best Use Cases
 
-- Current stable Windows usage: online API translation (configure provider + API key).
-- Compared with macOS Translation.framework, Windows does not have the same built-in system translation path for this app.
-- Offline packaged dictionary/model mode is still being developed and improved.
-
-## Platform Guides
-
-- Windows guide:
-  - `windows/README-Windows.md`
-- iOS keyboard MVP guide:
-  - `ios/README-iOS.md`
-
-## macOS Local Run
-
-1. Open this folder in Xcode as a Swift Package.
-2. Run executable target `TripleSpaceTranslatorApp` on `My Mac`.
-3. Grant permissions in app UI:
-   - Accessibility
-   - Input Monitoring
-4. Restart app after first permission grant.
+- ChatGPT, Claude, Grok, Gemini, and other AI chat boxes
+- Browser search bars
+- Messaging apps and quick replies
+- Drafting notes, prompts, and short documents
 
 ## Notes
 
-- Some apps/controls may block direct replacement.
-- On macOS/iOS, first translation of a language pair may require Apple language resources download.
-- If replacement is blocked in protected apps, try running the Windows app as Administrator.
+- Some apps and protected controls may block direct replacement.
+- On macOS and iOS, Apple may download language resources the first time a pair is used.
+- Windows stable usage currently relies on API translation, so some latency is expected.
+- Windows bundled offline model mode is still under development and not the recommended stable path yet.
 
-## CI Workflows
+## Guides
 
-- macOS package workflow:
-  - `.github/workflows/build-macos-installer.yml`
-- Windows installer workflow:
-  - `.github/workflows/build-windows-installer.yml`
+- Windows guide: [windows/README-Windows.md](windows/README-Windows.md)
+- iOS keyboard MVP: [ios/README-iOS.md](ios/README-iOS.md)
+
+## Build Workflows
+
+- macOS installer workflow: [.github/workflows/build-macos-installer.yml](.github/workflows/build-macos-installer.yml)
+- Windows installer workflow: [.github/workflows/build-windows-installer.yml](.github/workflows/build-windows-installer.yml)
